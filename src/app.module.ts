@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
 import envConfig from '../config/env';
+import { APP_PIPE } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -33,6 +34,21 @@ import envConfig from '../config/env';
     DocumentModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_PIPE,
+      useFactory: () =>
+        new ValidationPipe({
+          whitelist: true, // 自动移除非装饰器属性
+          forbidNonWhitelisted: true, // 当有非白名单属性时抛出错误
+          transform: true, // 自动转换数据类型
+          transformOptions: {
+            enableImplicitConversion: true, // 启用隐式类型转换
+          },
+          disableErrorMessages: false, // 在生产环境可以设为true
+        }),
+    },
+  ],
 })
 export class AppModule {}
