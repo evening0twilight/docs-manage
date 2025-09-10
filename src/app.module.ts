@@ -36,6 +36,7 @@ import { APP_PIPE } from '@nestjs/core';
   controllers: [AppController],
   providers: [
     AppService,
+    // 这里加上了全局验证管道配置，用于全局验证数据
     {
       provide: APP_PIPE,
       useFactory: () =>
