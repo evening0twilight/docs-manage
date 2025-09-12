@@ -1,3 +1,4 @@
+// 实体定义
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('documents')
