@@ -4,12 +4,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
-import {
-  RegisterDto,
-  LoginDto,
-  AuthResponse,
-  TokenPayload,
-} from './dto/auth.dto';
+import { RegisterDto, LoginDto, AuthResponse } from './dto/auth.dto';
 
 @Injectable()
 export class UsersService {
@@ -62,7 +57,10 @@ export class UsersService {
     }
 
     // 验证密码
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      String(user.password),
+    );
     if (!isPasswordValid) {
       throw new HttpException('密码错误', HttpStatus.UNAUTHORIZED);
     }
@@ -114,17 +112,18 @@ export class UsersService {
 
   // 生成双token
   private async generateTokens(user: UserEntity): Promise<AuthResponse> {
-    const payload: TokenPayload = {
-      sub: user.id,
-      username: user.username,
-      email: user.email,
-    };
-
     // 生成访问token (15分钟)
-    const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'secret',
-      expiresIn: '15m',
-    });
+    const accessToken = this.jwtService.sign(
+      {
+        sub: user.id,
+        username: user.username,
+        email: user.email,
+      },
+      {
+        secret: process.env.JWT_SECRET || 'secret',
+        expiresIn: '15m',
+      },
+    );
 
     // 生成刷新token (7天)
     const refreshToken = this.jwtService.sign(
@@ -139,13 +138,12 @@ export class UsersService {
     await this.userRepository.update(user.id, { refreshToken });
 
     return {
-      accessToken,
-      refreshToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
-        createdAt: user.createdAt,
       },
     };
   }

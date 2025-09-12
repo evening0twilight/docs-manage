@@ -8,7 +8,6 @@ import { MulterModule } from '@nestjs/platform-express';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Document]),
     TypeOrmModule.forFeature([DocumentEntity]),
     MulterModule.register({
       dest: './uploads', // 文件上传目录
@@ -16,5 +15,6 @@ import { MulterModule } from '@nestjs/platform-express';
   ],
   controllers: [DocumentController],
   providers: [DocumentService],
+  exports: [DocumentService],
 })
 export class DocumentModule {}
