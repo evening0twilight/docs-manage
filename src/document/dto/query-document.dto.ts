@@ -7,7 +7,7 @@ import {
   Max,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { DocumentType } from './create-document.dto';
+import { DocumentType, DocumentVisibility } from './create-document.dto';
 
 export class QueryDocumentDto {
   @IsOptional()
@@ -20,6 +20,10 @@ export class QueryDocumentDto {
   @IsOptional()
   @IsEnum(DocumentType, { message: '文档类型无效' })
   type?: DocumentType;
+
+  @IsOptional()
+  @IsEnum(DocumentVisibility, { message: '文档可见性无效' })
+  visibility?: DocumentVisibility;
 
   @IsOptional()
   @IsNumber({}, { message: '页码必须是数字' })
@@ -37,5 +41,15 @@ export class QueryDocumentDto {
   @IsOptional()
   @IsNumber({}, { message: '创建者ID必须是数字' })
   @Type(() => Number)
-  createdBy?: number;
+  creatorId?: number;
+
+  // 是否只查询自己创建的文档
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return Boolean(value);
+  })
+  onlyMine?: boolean;
 }

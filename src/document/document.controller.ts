@@ -9,29 +9,31 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { DocumentService } from './document.service';
-import { CreateDocumentDto, UpdateDocumentDto } from './dto';
+import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto } from './dto';
 import { ResponseDto } from '../common/dto';
-import { DocumentEntity } from './document.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('documents')
 export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
   @Post()
-  async create(@Body() createDocumentDto: CreateDocumentDto) {
+  @UseGuards(AuthGuard('jwt'))
+  async create(
+    @Body() createDocumentDto: CreateDocumentDto,
+    @Request() req: any,
+  ) {
     try {
-      // 将 DTO 转换为实体格式
-      const documentData: Partial<DocumentEntity> = {
-        title: createDocumentDto.title,
-        content: createDocumentDto.content || '',
-        author: 'default', // 临时默认值，后续可以从JWT获取
-        type: this.getTypeNumber(createDocumentDto.type),
-        thumb_url: createDocumentDto.filePath || '',
-      };
+      const currentUserId = Number(req.user.sub); // 确保是数字类型
 
-      const document = await this.documentService.create(documentData);
+      const document = await this.documentService.create(
+        createDocumentDto,
+        currentUserId,
+      );
       return new ResponseDto(
         true,
         '文档创建成功',
@@ -51,9 +53,15 @@ export class DocumentController {
   }
 
   @Get()
-  async findAll(@Query() query: any) {
+  async findAll(@Query() query: QueryDocumentDto, @Request() req?: any) {
     try {
-      const result = await this.documentService.findDocsList(query);
+      // 获取当前用户ID（如果已登录）
+      const currentUserId = req?.user?.sub ? Number(req.user.sub) : undefined;
+
+      const result = await this.documentService.findDocsList(
+        query,
+        currentUserId,
+      );
       return new ResponseDto(
         true,
         '文档列表获取成功',
@@ -104,30 +112,20 @@ export class DocumentController {
   }
 
   @Put(':id')
+  @UseGuards(AuthGuard('jwt'))
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDocumentDto: UpdateDocumentDto,
+    @Request() req: any,
   ) {
     try {
-      // 将 DTO 转换为实体格式
-      const updateData: Partial<DocumentEntity> = {
-        title: updateDocumentDto.title,
-        content: updateDocumentDto.content,
-        type: updateDocumentDto.type
-          ? this.getTypeNumber(updateDocumentDto.type)
-          : undefined,
-        thumb_url: updateDocumentDto.filePath,
-        updated_time: new Date(),
-      };
+      const currentUserId = Number(req.user.sub); // 确保是数字类型
 
-      // 过滤掉 undefined 值
-      Object.keys(updateData).forEach((key) => {
-        if (updateData[key] === undefined) {
-          delete updateData[key];
-        }
-      });
-
-      const document = await this.documentService.updateById(id, updateData);
+      const document = await this.documentService.updateById(
+        id,
+        updateDocumentDto,
+        currentUserId,
+      );
       return new ResponseDto(
         true,
         '文档更新成功',
@@ -147,9 +145,12 @@ export class DocumentController {
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  @UseGuards(AuthGuard('jwt'))
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
     try {
-      await this.documentService.remove(id);
+      const currentUserId = Number(req.user.sub); // 确保是数字类型
+
+      await this.documentService.remove(id, currentUserId);
       return new ResponseDto(
         true,
         '文档删除成功',

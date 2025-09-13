@@ -5,7 +5,8 @@ import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
-import envConfig from '../config/env';
+import { envConfig } from './config/env';
+// import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
 
 @Module({
@@ -13,6 +14,7 @@ import { APP_PIPE } from '@nestjs/core';
     ConfigModule.forRoot({
       isGlobal: true, //设置为全局模块
       envFilePath: [envConfig.path],
+      // validate, // 暂时禁用验证
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -23,11 +25,12 @@ import { APP_PIPE } from '@nestjs/core';
         host: configService.get<string>('DB_HOST', 'localhost'), // 主机，默认为localhost
         port: configService.get<number>('DB_PORT', 3306),
         username: configService.get<string>('DB_USERNAME', 'root'),
-        password: configService.get<string>('DB_PASSWORD', 'root'),
-        database: configService.get<string>('DB_NAME', 'users'),
+        password: configService.get<string>('DB_PASSWORD', ''),
+        database: configService.get<string>('DB_NAME', 'docs-manage'),
         timezone: '+08:00', // 服务器上配置的时区：东八时区
         autoLoadEntities: true, //自动加载实体
-        synchronize: true, //是否自动将实体同步到数据库
+        synchronize: configService.get<string>('NODE_ENV') !== 'production', //是否自动将实体同步到数据库
+        logging: configService.get<string>('NODE_ENV') === 'development', // 开发环境开启日志
       }),
     }),
     UsersModule,

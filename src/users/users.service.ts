@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
 import { RegisterDto, LoginDto, AuthResponse } from './dto/auth.dto';
@@ -12,6 +13,7 @@ export class UsersService {
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   // 注册用户
@@ -74,7 +76,7 @@ export class UsersService {
     try {
       // 验证refresh token
       const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
       // 查找用户
@@ -120,8 +122,8 @@ export class UsersService {
         email: user.email,
       },
       {
-        secret: process.env.JWT_SECRET || 'secret',
-        expiresIn: '15m',
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '24h'),
       },
     );
 
@@ -129,8 +131,11 @@ export class UsersService {
     const refreshToken = this.jwtService.sign(
       { sub: user.id },
       {
-        secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret',
-        expiresIn: '7d',
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '7d',
+        ),
       },
     );
 
