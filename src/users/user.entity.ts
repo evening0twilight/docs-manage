@@ -5,7 +5,9 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { DocumentEntity } from '../document/document.entity';
 
 @Entity('users')
 export class UserEntity {
@@ -26,6 +28,10 @@ export class UserEntity {
 
   @Column({ default: true })
   isActive: boolean;
+
+  // 用户创建的文档 - 一对多关系
+  @OneToMany(() => DocumentEntity, (document) => document.creator)
+  documents: DocumentEntity[];
 
   @CreateDateColumn()
   createdAt: Date;

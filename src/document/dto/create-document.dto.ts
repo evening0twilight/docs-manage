@@ -18,6 +18,12 @@ export enum DocumentType {
   OTHER = 'other',
 }
 
+export enum DocumentVisibility {
+  PRIVATE = 'private',
+  PUBLIC = 'public',
+  SHARED = 'shared',
+}
+
 export class CreateDocumentDto {
   @IsNotEmpty({ message: '文档标题不能为空' })
   @IsString({ message: '文档标题必须是字符串' })
@@ -48,6 +54,10 @@ export class CreateDocumentDto {
   type?: DocumentType;
 
   @IsOptional()
+  @IsEnum(DocumentVisibility, { message: '文档可见性无效' })
+  visibility?: DocumentVisibility;
+
+  @IsOptional()
   @IsString({ message: '文件路径必须是字符串' })
   @Transform(({ value }: { value: string }) => {
     return typeof value === 'string' ? value.trim() : value;
@@ -59,8 +69,10 @@ export class CreateDocumentDto {
   @Type(() => Number)
   fileSize?: number;
 
+  // 注意: creatorId 通常从JWT token中获取，不需要前端传递
+  // 这里保留是为了兼容性，实际使用中会被覆盖
   @IsOptional()
   @IsNumber({}, { message: '创建者ID必须是数字' })
   @Type(() => Number)
-  createdBy?: number;
+  creatorId?: number;
 }
