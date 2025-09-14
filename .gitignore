@@ -39,8 +39,10 @@ lerna-debug.log*
 .env
 .env.development.local
 .env.test.local
-.env.production.local
 .env.local
+
+# 保留生产环境模板，但实际部署时的环境文件不提交
+# .env.production 作为模板可以提交，实际部署时重命名为 .env
 
 # temp directory
 .temp
@@ -54,3 +56,14 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# 上传文件目录
+uploads/
+!uploads/.gitkeep
+
+# 部署相关
+nginx/ssl/
+mysql/data/
+
+# 测试文件
+test-env.js
