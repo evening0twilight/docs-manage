@@ -10,30 +10,6 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-pzj'
     
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v4
-      
-    - name: 安装 pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
-        
-    - name: 设置 Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'pnpm'
-        
-    - name: 安装依赖
-      run: pnpm install --no-frozen-lockfile
-        
-    - name: 构建项目
-      run: pnpm run build
-      
-    # 跳过测试避免部署失败
-    # - name: 运行测试
-    #   run: pnpm run test
-      
     - name: 部署到服务器
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -50,10 +26,12 @@ jobs:
           
           # 克隆或更新项目
           if [ -d "docs-manage" ]; then
+            echo "更新现有项目..."
             cd docs-manage
             git fetch origin
             git reset --hard origin/${{ github.ref_name }}
           else
+            echo "克隆新项目..."
             git clone -b ${{ github.ref_name }} https://github.com/evening0twilight/docs-manage.git
             cd docs-manage
           fi
@@ -76,15 +54,26 @@ jobs:
           fi
           
           # 停止现有服务
+          echo "停止现有服务..."
           sudo docker-compose down || true
           
-          # 重新构建并启动服务
+          # 清理旧镜像
+          sudo docker system prune -f || true
+          
+          # 重新构建并启动服务（所有构建都在容器内完成）
+          echo "构建并启动服务..."
           sudo docker-compose up --build -d
           
           # 等待服务启动
+          echo "等待服务启动..."
           sleep 30
           
           # 检查服务状态
+          echo "检查服务状态..."
           sudo docker-compose ps
           
-          echo "部署完成！访问: http://165.227.56.186/api"
+          # 检查应用日志
+          echo "最近日志:"
+          sudo docker-compose logs --tail=20 app
+          
+          echo "部署完成！访问: http://165.227.56.186:3000/api"
