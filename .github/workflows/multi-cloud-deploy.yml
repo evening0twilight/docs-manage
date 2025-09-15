@@ -1,5 +1,4 @@
 name: 多云环境部署
-
 on:
   push:
     branches: [ main, master ]
