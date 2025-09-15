@@ -31,4 +31,4 @@ RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # 启动应用
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

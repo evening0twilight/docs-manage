@@ -5,8 +5,37 @@ on:
     branches: [ main, master, dev-pzj ]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-pzj'
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 安装 pnpm
+      run: npm install -g pnpm
+      
+    - name: 安装依赖
+      run: pnpm install --no-frozen-lockfile
+      
+    - name: 构建项目
+      run: pnpm run build
+      
+    - name: 检查构建文件
+      run: |
+        ls -la dist/
+        ls -la dist/src/
+        test -f dist/src/main.js && echo "✅ main.js 文件存在" || echo "❌ main.js 文件不存在"
+
   deploy:
     runs-on: ubuntu-latest
+    needs: test
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-pzj'
     
     steps:
