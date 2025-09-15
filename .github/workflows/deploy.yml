@@ -3,27 +3,29 @@ name: 自动部署到云服务器
 on:
   push:
     branches: [ main, master, dev-pzj ]
-  pull_request:
-    branches: [ main, master ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-pzj'
     
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
       
+    - name: 安装 pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+        
     - name: 设置 Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
+        cache: 'pnpm'
         
     - name: 安装依赖
-      run: |
-        npm install -g pnpm
-        pnpm install --frozen-lockfile
+      run: pnpm install --frozen-lockfile
         
     - name: 构建项目
       run: pnpm run build
@@ -32,7 +34,6 @@ jobs:
       run: pnpm run test
       
     - name: 部署到服务器
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-pzj'
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.SERVER_HOST }}
@@ -40,8 +41,49 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}
         port: ${{ secrets.SERVER_PORT }}
         script: |
-          cd /home/deploy/docs-manage
-          git pull origin ${{ github.ref_name }}
-          docker-compose down
-          docker-compose up --build -d
-          docker system prune -f
+          echo "开始部署..."
+          
+          # 创建部署目录
+          mkdir -p /home/deploy
+          cd /home/deploy
+          
+          # 克隆或更新项目
+          if [ -d "docs-manage" ]; then
+            cd docs-manage
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+          else
+            git clone -b ${{ github.ref_name }} https://github.com/evening0twilight/docs-manage.git
+            cd docs-manage
+          fi
+          
+          # 复制环境配置
+          cp .env.production .env
+          
+          # 确保 Docker 和 Docker Compose 已安装
+          if ! command -v docker &> /dev/null; then
+            echo "安装 Docker..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo usermod -aG docker $USER
+          fi
+          
+          if ! command -v docker-compose &> /dev/null; then
+            echo "安装 Docker Compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          
+          # 停止现有服务
+          sudo docker-compose down || true
+          
+          # 重新构建并启动服务
+          sudo docker-compose up --build -d
+          
+          # 等待服务启动
+          sleep 30
+          
+          # 检查服务状态
+          sudo docker-compose ps
+          
+          echo "部署完成！访问: http://167.71.149.222/api"
