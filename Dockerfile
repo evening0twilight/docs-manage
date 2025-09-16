@@ -19,6 +19,9 @@ COPY . .
 # 构建应用
 RUN pnpm run build
 
+# 设置启动脚本权限
+RUN chmod +x start.sh
+
 # 暴露端口
 EXPOSE 3000
 
@@ -31,4 +34,4 @@ RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # 启动应用
-CMD ["node", "dist/src/main.js"]
+CMD ["./start.sh"]

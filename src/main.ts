@@ -2,15 +2,30 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import 'reflect-metadata';
 
-// 修复 crypto 未定义问题 - 在应用启动前等待设置完成
+// 修复 crypto 未定义问题 - 更强的 polyfill
 async function setupCrypto() {
-  if (!global.crypto) {
-    const { webcrypto } = await import('node:crypto');
-    Object.defineProperty(global, 'crypto', {
-      value: webcrypto,
-      writable: false,
-      configurable: true,
-    });
+  // 尝试多种方式设置 crypto
+  if (typeof global.crypto === 'undefined') {
+    try {
+      const { webcrypto } = await import('node:crypto');
+      (global as any).crypto = webcrypto;
+    } catch (error) {
+      console.log('Failed to setup crypto polyfill:', error);
+    }
+  }
+  
+  // 如果还是没有，使用另一种方式
+  if (typeof global.crypto === 'undefined') {
+    try {
+      const crypto = await import('crypto');
+      (global as any).crypto = {
+        randomUUID: () => crypto.randomUUID(),
+        subtle: crypto.webcrypto?.subtle,
+        getRandomValues: (arr: any) => crypto.webcrypto?.getRandomValues(arr),
+      };
+    } catch (error) {
+      console.log('Failed to setup fallback crypto:', error);
+    }
   }
 }
 
@@ -19,6 +34,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api'); // 全局路由前缀
   await app.listen(process.env.PORT ?? 3000);
+  console.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
 }
 
 void bootstrap();
