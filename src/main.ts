@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import 'reflect-metadata';
 
 // 修复 crypto 未定义问题 - 更强的 polyfill
@@ -31,10 +33,17 @@ async function setupCrypto() {
 
 async function bootstrap() {
   await setupCrypto(); // 确保 crypto 在应用启动前设置好
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 配置静态文件服务
+  app.useStaticAssets(join(__dirname, '..', 'public'));
+
   app.setGlobalPrefix('api'); // 全局路由前缀
   await app.listen(process.env.PORT ?? 3000);
   console.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
+  console.log(
+    `日志查看器: http://localhost:${process.env.PORT ?? 3000}/logs.html`,
+  );
 }
 
 void bootstrap();
