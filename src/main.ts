@@ -44,19 +44,29 @@ async function bootstrap() {
 
   // 配置静态文件服务
   const publicPath = join(__dirname, '..', 'public');
+  const altPublicPath = join(process.cwd(), 'public');
+  
   console.log('Static files path:', publicPath);
+  console.log('Alt static files path:', altPublicPath);
   console.log('Current __dirname:', __dirname);
+  console.log('Current cwd:', process.cwd());
 
-  // 检查目录是否存在
-  if (existsSync(publicPath)) {
-    console.log('Public directory exists');
+  // 检查目录是否存在，优先使用工作目录下的public
+  let finalPublicPath = publicPath;
+  if (existsSync(altPublicPath)) {
+    console.log('Using alt public directory');
+    const files = readdirSync(altPublicPath);
+    console.log('Files in alt public directory:', files);
+    finalPublicPath = altPublicPath;
+  } else if (existsSync(publicPath)) {
+    console.log('Using default public directory');
     const files = readdirSync(publicPath);
     console.log('Files in public directory:', files);
   } else {
-    console.log('Public directory does not exist');
+    console.log('No public directory found');
   }
 
-  app.useStaticAssets(publicPath);
+  app.useStaticAssets(finalPublicPath);
 
   // 启用全局异常过滤器以便捕获详细错误信息
   app.useGlobalFilters(new GlobalExceptionFilter());
