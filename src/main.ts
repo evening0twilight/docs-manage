@@ -23,7 +23,12 @@ async function setupCrypto() {
       (global as any).crypto = {
         randomUUID: () => crypto.randomUUID(),
         subtle: crypto.webcrypto?.subtle,
-        getRandomValues: (arr: any) => crypto.webcrypto?.getRandomValues(arr),
+        getRandomValues: (arr: any): any => {
+          if (crypto.webcrypto?.getRandomValues) {
+            return crypto.webcrypto.getRandomValues(arr);
+          }
+          return arr;
+        },
       };
     } catch (error) {
       console.log('Failed to setup fallback crypto:', error);
