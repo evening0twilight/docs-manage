@@ -185,4 +185,40 @@ export class LogsController {
       };
     }
   }
+
+  @Get('nodejs')
+  async getNodeJSLogs() {
+    try {
+      const commands = [
+        'dmesg | tail -50',
+        'cat /proc/1/environ | tr "\\0" "\\n"',
+        'ls -la /app',
+        'ls -la /app/public',
+        'pwd && whoami && id',
+        'node --version && npm --version',
+      ];
+
+      let result = '';
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          result += `=== ${cmd} ===\n${stdout}\n\n`;
+        } catch (error: any) {
+          result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
+        }
+      }
+
+      return {
+        success: true,
+        logs: result,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
 }

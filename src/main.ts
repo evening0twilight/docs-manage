@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { existsSync, readdirSync } from 'fs';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import 'reflect-metadata';
 
 // 修复 crypto 未定义问题 - 更强的 polyfill
@@ -41,7 +43,23 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // 配置静态文件服务
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  const publicPath = join(__dirname, '..', 'public');
+  console.log('Static files path:', publicPath);
+  console.log('Current __dirname:', __dirname);
+
+  // 检查目录是否存在
+  if (existsSync(publicPath)) {
+    console.log('Public directory exists');
+    const files = readdirSync(publicPath);
+    console.log('Files in public directory:', files);
+  } else {
+    console.log('Public directory does not exist');
+  }
+
+  app.useStaticAssets(publicPath);
+
+  // 启用全局异常过滤器以便捕获详细错误信息
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.setGlobalPrefix('api'); // 全局路由前缀
   await app.listen(process.env.PORT ?? 3000);
