@@ -6,12 +6,25 @@ const execAsync = promisify(exec);
 
 @Controller('logs')
 export class LogsController {
-  @Get('app')
-  async getAppLogs(@Query('lines') lines: string = '50') {
+  @Get()
+  getLogsHelp() {
+    return {
+      message: 'Logs API - Available endpoints',
+      endpoints: {
+        '/api/logs/app': 'Get application logs',
+        '/api/logs/mysql': 'Get MySQL logs',
+        '/api/logs/all': 'Get all service logs',
+        '/api/logs/status': 'Get system status',
+        '/api/logs/simple': 'Get simple Node.js process info',
+      },
+      webInterface: 'Visit /logs.html for web interface',
+    };
+  }
+
+  @Get('simple')
+  async getSimpleLogs() {
     try {
-      const { stdout } = await execAsync(
-        `docker-compose logs --tail=${lines} app`,
-      );
+      const { stdout } = await execAsync('ps aux | head -20');
       return {
         success: true,
         logs: stdout,
@@ -26,15 +39,72 @@ export class LogsController {
     }
   }
 
-  @Get('mysql')
-  async getMySQLLogs(@Query('lines') lines: string = '20') {
+  @Get('app')
+  async getAppLogs(@Query('lines') lines: string = '50') {
     try {
-      const { stdout } = await execAsync(
-        `docker-compose logs --tail=${lines} mysql`,
-      );
+      // 尝试多种方式获取应用日志
+      const commands = [
+        'journalctl -u docs-manage --no-pager -n ' + lines,
+        'tail -' + lines + ' /var/log/docs-manage.log',
+        'ps aux | grep node',
+        'echo "Node.js process info:" && ps aux | grep node && echo "Environment:" && env | grep NODE',
+      ];
+
+      let lastError = null;
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          if (stdout.trim()) {
+            return {
+              success: true,
+              logs: stdout,
+              command: cmd,
+              timestamp: new Date().toISOString(),
+            };
+          }
+        } catch (error: any) {
+          lastError = error;
+          continue;
+        }
+      }
+
+      throw lastError || new Error('No logs found');
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        fallback: 'Try /api/logs/simple for basic process info',
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Get('mysql')
+  async getMySQLLogs() {
+    try {
+      // 尝试多种方式获取MySQL相关信息
+      const commands = [
+        'mysqladmin status',
+        'mysql -e "SHOW PROCESSLIST;"',
+        'ps aux | grep mysql',
+        'netstat -an | grep 3306',
+      ];
+
+      let result = '';
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          if (stdout.trim()) {
+            result += `=== ${cmd} ===\n${stdout}\n\n`;
+          }
+        } catch (error: any) {
+          result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
+        }
+      }
+
       return {
         success: true,
-        logs: stdout,
+        logs: result || 'No MySQL information available',
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
@@ -47,12 +117,29 @@ export class LogsController {
   }
 
   @Get('all')
-  async getAllLogs(@Query('lines') lines: string = '30') {
+  async getAllLogs() {
     try {
-      const { stdout } = await execAsync(`docker-compose logs --tail=${lines}`);
+      const commands = [
+        'ps aux',
+        'df -h',
+        'free -m',
+        'netstat -tulpn',
+        'env | grep -E "(NODE|DB|PORT)"',
+      ];
+
+      let result = '';
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          result += `=== ${cmd} ===\n${stdout}\n\n`;
+        } catch (error: any) {
+          result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
+        }
+      }
+
       return {
         success: true,
-        logs: stdout,
+        logs: result,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
@@ -67,15 +154,27 @@ export class LogsController {
   @Get('status')
   async getSystemStatus() {
     try {
-      const [containers, processes] = await Promise.all([
-        execAsync('docker-compose ps'),
-        execAsync('ps aux | grep node'),
-      ]);
+      const commands = [
+        'uptime',
+        'ps aux | grep -E "(node|mysql)" | grep -v grep',
+        'netstat -an | grep LISTEN',
+        'df -h /',
+        'free -m',
+      ];
+
+      let result = '';
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          result += `=== ${cmd} ===\n${stdout}\n\n`;
+        } catch (error: any) {
+          result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
+        }
+      }
 
       return {
         success: true,
-        containers: containers.stdout,
-        processes: processes.stdout,
+        status: result,
         timestamp: new Date().toISOString(),
       };
     } catch (error: any) {
