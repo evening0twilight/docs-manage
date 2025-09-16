@@ -13,7 +13,7 @@ async function setupCrypto() {
       console.log('Failed to setup crypto polyfill:', error);
     }
   }
-  
+
   // 如果还是没有，使用另一种方式
   if (typeof global.crypto === 'undefined') {
     try {
