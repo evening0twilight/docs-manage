@@ -203,14 +203,9 @@
                 if (data.success) {
                     statusDiv.innerHTML = `
                         <div class="log-container">
-                            <div class="log-title">🐳 Docker 容器状态</div>
+                            <div class="log-title">�️ 系统状态信息</div>
                             <div class="timestamp">检查时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}</div>
-                            <div>${data.containers}</div>
-                        </div>
-                        <div class="log-container">
-                            <div class="log-title">⚙️ Node.js 进程状态</div>
-                            <div class="timestamp">检查时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}</div>
-                            <div>${data.processes}</div>
+                            <div>${data.status || data.logs || '无状态信息'}</div>
                         </div>
                     `;
                     logsDiv.innerHTML = '';
@@ -219,7 +214,7 @@
                         <div class="log-container error">
                             <div class="log-title">❌ 获取系统状态失败</div>
                             <div class="timestamp">错误时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}</div>
-                            <div>${data.error}</div>
+                            <div>${data.error || '未知错误'}</div>
                         </div>
                     `;
                 }
