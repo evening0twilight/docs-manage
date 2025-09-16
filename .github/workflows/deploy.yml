@@ -105,6 +105,18 @@ jobs:
           
           # 检查应用日志
           echo "最近日志:"
-          sudo docker-compose logs --tail=20 app
+          sudo docker-compose logs --tail=50 app
+          
+          # 检查数据库连接
+          echo "检查数据库状态:"
+          sudo docker-compose logs --tail=20 mysql
+          
+          # 等待额外时间让应用完全启动
+          echo "等待应用完全启动..."
+          sleep 15
+          
+          # 再次检查应用日志
+          echo "应用启动后日志:"
+          sudo docker-compose logs --tail=30 app
           
           echo "部署完成！访问: http://165.227.56.186:3000/api"
