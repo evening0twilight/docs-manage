@@ -5,6 +5,7 @@ import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
+import { LogsModule } from './logs/logs.module';
 import { envConfig } from './config/env';
 // import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
@@ -35,6 +36,7 @@ import { APP_PIPE } from '@nestjs/core';
     }),
     UsersModule,
     DocumentModule,
+    LogsModule,
   ],
   controllers: [AppController],
   providers: [
