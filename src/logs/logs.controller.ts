@@ -1,11 +1,18 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 const execAsync = promisify(exec);
 
 @Controller('logs')
 export class LogsController {
+  constructor(
+    @InjectDataSource()
+    private dataSource: DataSource,
+  ) {}
+
   @Get()
   getLogsHelp() {
     return {
@@ -16,6 +23,8 @@ export class LogsController {
         '/api/logs/all': 'Get all service logs',
         '/api/logs/status': 'Get system status',
         '/api/logs/simple': 'Get simple Node.js process info',
+        '/api/logs/test-db': 'Test database connection',
+        '/api/logs/db-check': 'Check database tables and connection',
       },
       webInterface: 'Visit /logs.html for web interface',
     };
@@ -206,6 +215,97 @@ export class LogsController {
         } catch (error: any) {
           result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
         }
+      }
+
+      return {
+        success: true,
+        logs: result,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Get('test-db')
+  async testDatabase() {
+    try {
+      // 测试数据库连接相关信息
+      const commands = [
+        'ping -c 2 mysql',
+        'nslookup mysql',
+        'telnet mysql 3306 < /dev/null',
+        'env | grep DB',
+      ];
+
+      let result = '';
+      for (const cmd of commands) {
+        try {
+          const { stdout } = await execAsync(cmd);
+          result += `=== ${cmd} ===\n${stdout}\n\n`;
+        } catch (error: any) {
+          result += `=== ${cmd} (Failed) ===\n${error.message}\n\n`;
+        }
+      }
+
+      return {
+        success: true,
+        logs: result,
+        message: 'Database connectivity test completed',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  @Get('db-check')
+  async checkDatabase() {
+    try {
+      let result = '';
+      
+      // 1. 检查数据源是否连接
+      result += `=== Database Connection Status ===\n`;
+      result += `Connected: ${this.dataSource.isInitialized}\n`;
+      result += `Database: ${String(this.dataSource.options.database) || 'Unknown'}\n`;
+      result += `Type: ${this.dataSource.options.type}\n\n`;
+      
+      // 2. 尝试执行简单查询
+      try {
+        const queryResult = await this.dataSource.query('SELECT 1 as test');
+        result += `=== Simple Query Test ===\n`;
+        result += `Query result: ${JSON.stringify(queryResult)}\n\n`;
+      } catch (error: any) {
+        result += `=== Simple Query Test (Failed) ===\n`;
+        result += `Error: ${error.message}\n\n`;
+      }
+      
+      // 3. 检查表结构
+      try {
+        const tables = await this.dataSource.query('SHOW TABLES');
+        result += `=== Database Tables ===\n`;
+        result += `Tables: ${JSON.stringify(tables)}\n\n`;
+      } catch (error: any) {
+        result += `=== Database Tables (Failed) ===\n`;
+        result += `Error: ${error.message}\n\n`;
+      }
+      
+      // 4. 检查 users 表结构
+      try {
+        const userTableInfo = await this.dataSource.query('DESCRIBE users');
+        result += `=== Users Table Structure ===\n`;
+        result += `Structure: ${JSON.stringify(userTableInfo, null, 2)}\n\n`;
+      } catch (error: any) {
+        result += `=== Users Table Structure (Failed) ===\n`;
+        result += `Error: ${error.message}\n\n`;
       }
 
       return {
