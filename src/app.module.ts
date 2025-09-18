@@ -5,6 +5,7 @@ import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
+import { LogsModule } from './logs/logs.module';
 import { envConfig } from './config/env';
 // import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
@@ -21,7 +22,7 @@ import { APP_PIPE } from '@nestjs/core';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'mysql' as const, // 数据库类型
-        entities: [], // 数据表实体
+        entities: [__dirname + '/**/*.entity{.ts,.js}'], // 数据表实体
         host: configService.get<string>('DB_HOST', 'localhost'), // 主机，默认为localhost
         port: configService.get<number>('DB_PORT', 3306),
         username: configService.get<string>('DB_USERNAME', 'root'),
@@ -29,12 +30,13 @@ import { APP_PIPE } from '@nestjs/core';
         database: configService.get<string>('DB_NAME', 'docs-manage'),
         timezone: '+08:00', // 服务器上配置的时区：东八时区
         autoLoadEntities: true, //自动加载实体
-        synchronize: configService.get<string>('NODE_ENV') !== 'production', //是否自动将实体同步到数据库
-        logging: configService.get<string>('NODE_ENV') === 'development', // 开发环境开启日志
+        synchronize: true, // 临时启用以创建表结构
+        logging: configService.get<string>('NODE_ENV') !== 'production', // 生产环境也开启日志用于调试
       }),
     }),
     UsersModule,
     DocumentModule,
+    LogsModule,
   ],
   controllers: [AppController],
   providers: [
