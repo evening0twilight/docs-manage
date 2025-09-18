@@ -30,7 +30,7 @@ import { APP_PIPE } from '@nestjs/core';
         database: configService.get<string>('DB_NAME', 'docs-manage'),
         timezone: '+08:00', // 服务器上配置的时区：东八时区
         autoLoadEntities: true, //自动加载实体
-        synchronize: configService.get<string>('NODE_ENV') !== 'production', //是否自动将实体同步到数据库
+        synchronize: true, // 临时启用以创建表结构
         logging: configService.get<string>('NODE_ENV') !== 'production', // 生产环境也开启日志用于调试
       }),
     }),
