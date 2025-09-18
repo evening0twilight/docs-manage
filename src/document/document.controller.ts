@@ -12,11 +12,13 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { DocumentService } from './document.service';
 import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto } from './dto';
 import { ResponseDto } from '../common/dto';
 import { AuthGuard } from '@nestjs/passport';
 
+@ApiTags('documents')
 @Controller('documents')
 export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
