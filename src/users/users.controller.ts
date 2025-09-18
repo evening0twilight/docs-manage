@@ -8,6 +8,13 @@ import {
   Get,
   Request,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import {
   RegisterDto,
@@ -17,24 +24,55 @@ import {
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
+@ApiTags('users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: '用户注册', description: '创建新用户账户' })
+  @ApiBody({ type: RegisterDto, description: '用户注册信息' })
+  @ApiResponse({
+    status: 201,
+    description: '注册成功',
+    type: AuthResponse,
+  })
+  @ApiResponse({ status: 409, description: '用户名或邮箱已存在' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async register(@Body() registerDto: RegisterDto): Promise<AuthResponse> {
     return this.usersService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '用户登录', description: '使用用户名和密码登录' })
+  @ApiBody({ type: LoginDto, description: '用户登录信息' })
+  @ApiResponse({
+    status: 200,
+    description: '登录成功',
+    type: AuthResponse,
+  })
+  @ApiResponse({ status: 404, description: '用户不存在' })
+  @ApiResponse({ status: 401, description: '密码错误' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponse> {
     return this.usersService.login(loginDto);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '刷新令牌',
+    description: '使用刷新令牌获取新的访问令牌',
+  })
+  @ApiBody({ type: RefreshTokenDto, description: '刷新令牌' })
+  @ApiResponse({
+    status: 200,
+    description: '令牌刷新成功',
+    type: AuthResponse,
+  })
+  @ApiResponse({ status: 401, description: '无效的刷新令牌' })
   async refreshToken(
     @Body() refreshTokenDto: RefreshTokenDto,
   ): Promise<AuthResponse> {
@@ -44,6 +82,13 @@ export class UsersController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '用户登出',
+    description: '登出当前用户，使令牌失效',
+  })
+  @ApiResponse({ status: 200, description: '登出成功' })
+  @ApiResponse({ status: 401, description: '未授权访问' })
   async logout(@Request() req: any): Promise<{ message: string }> {
     await this.usersService.logout(Number(req.user.sub));
     return { message: '登出成功' };
@@ -51,6 +96,13 @@ export class UsersController {
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '获取用户信息',
+    description: '获取当前登录用户的详细信息',
+  })
+  @ApiResponse({ status: 200, description: '获取用户信息成功' })
+  @ApiResponse({ status: 401, description: '未授权访问' })
   async getProfile(@Request() req: any) {
     const user = await this.usersService.findById(Number(req.user.sub));
     return {

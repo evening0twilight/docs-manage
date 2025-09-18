@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -6,6 +7,7 @@ import { DataSource } from 'typeorm';
 
 const execAsync = promisify(exec);
 
+@ApiTags('logs')
 @Controller('logs')
 export class LogsController {
   constructor(
@@ -271,13 +273,13 @@ export class LogsController {
   async checkDatabase() {
     try {
       let result = '';
-      
+
       // 1. 检查数据源是否连接
       result += `=== Database Connection Status ===\n`;
       result += `Connected: ${this.dataSource.isInitialized}\n`;
       result += `Database: ${String(this.dataSource.options.database) || 'Unknown'}\n`;
       result += `Type: ${this.dataSource.options.type}\n\n`;
-      
+
       // 2. 尝试执行简单查询
       try {
         const queryResult = await this.dataSource.query('SELECT 1 as test');
@@ -287,7 +289,7 @@ export class LogsController {
         result += `=== Simple Query Test (Failed) ===\n`;
         result += `Error: ${error.message}\n\n`;
       }
-      
+
       // 3. 检查表结构
       try {
         const tables = await this.dataSource.query('SHOW TABLES');
@@ -297,7 +299,7 @@ export class LogsController {
         result += `=== Database Tables (Failed) ===\n`;
         result += `Error: ${error.message}\n\n`;
       }
-      
+
       // 4. 检查 users 表结构
       try {
         const userTableInfo = await this.dataSource.query('DESCRIBE users');
