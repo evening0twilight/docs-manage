@@ -112,7 +112,8 @@
             <button onclick="fetchAppLogs()">🚀 应用日志</button>
             <button onclick="fetchMySQLLogs()">🗄️ MySQL日志</button>
             <button onclick="fetchAllLogs()">📋 所有日志</button>
-            <button onclick="fetchStatus()" class="refresh-btn">⚡ 系统状态</button>
+            <button onclick="fetchDbCheck()" class="refresh-btn">🔍 数据库诊断</button>
+            <button onclick="fetchApiInfo()">ℹ️ API信息</button>
             
             <label>显示行数:</label>
             <input type="number" id="logLines" value="50" min="10" max="200">
@@ -240,9 +241,83 @@
             fetchLogs('all', '📋 所有服务日志', 'all');
         }
 
-        // 页面加载时自动获取系统状态
+        async function fetchDbCheck() {
+            currentLogType = 'db-check';
+            const statusDiv = document.getElementById('status');
+            const logsDiv = document.getElementById('logs');
+            
+            statusDiv.innerHTML = '<div class="loading">🔍 正在检查数据库状态...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/logs/db-check`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = `
+                        <div class="log-container">
+                            <div class="log-title">🔍 数据库诊断信息</div>
+                            <div class="timestamp">检查时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}</div>
+                            <div>${data.logs || '无诊断信息'}</div>
+                        </div>
+                    `;
+                    logsDiv.innerHTML = '';
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="log-container error">
+                            <div class="log-title">❌ 数据库诊断失败</div>
+                            <div class="timestamp">错误时间: ${new Date(data.timestamp).toLocaleString('zh-CN')}</div>
+                            <div>${data.error || '未知错误'}</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="log-container error">
+                        <div class="log-title">❌ 网络错误</div>
+                        <div>无法连接到服务器: ${error.message}</div>
+                        <div>请检查服务器是否正常运行</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function fetchApiInfo() {
+            currentLogType = 'api-info';
+            const statusDiv = document.getElementById('status');
+            const logsDiv = document.getElementById('logs');
+            
+            statusDiv.innerHTML = '<div class="loading">ℹ️ 正在获取API信息...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/logs`);
+                const data = await response.json();
+                
+                statusDiv.innerHTML = `
+                    <div class="log-container">
+                        <div class="log-title">ℹ️ API端点信息</div>
+                        <div class="timestamp">获取时间: ${new Date().toLocaleString('zh-CN')}</div>
+                        <div>${JSON.stringify(data, null, 2)}</div>
+                    </div>
+                `;
+                logsDiv.innerHTML = '';
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="log-container error">
+                        <div class="log-title">❌ 获取API信息失败</div>
+                        <div>错误: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // 页面加载时自动获取API信息
         window.onload = function() {
-            fetchStatus();
+            fetchApiInfo();
         };
     </script>
 </body>
