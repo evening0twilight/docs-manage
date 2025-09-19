@@ -103,10 +103,12 @@ async function bootstrap() {
   // 启用全局异常过滤器以便捕获详细错误信息
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  app.setGlobalPrefix('api'); // 全局路由前缀
-
-  // 配置 Swagger 文档
+  // 先配置 Swagger 文档（在全局前缀之前）
   setupSwagger(app);
+
+  app.setGlobalPrefix('api', {
+    exclude: ['api-docs', 'api-docs-json'], // 排除 Swagger 路由
+  }); // 全局路由前缀
 
   await app.listen(process.env.PORT ?? 3000);
   console.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
