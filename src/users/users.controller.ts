@@ -23,6 +23,12 @@ import {
   RefreshTokenDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import {
+  CreatedResponseDto,
+  SuccessResponseDto,
+  UserProfileResponseDto,
+  LogoutResponseDto,
+} from '../common/dto/response-format.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -36,12 +42,13 @@ export class UsersController {
   @ApiResponse({
     status: 201,
     description: '注册成功',
-    type: AuthResponse,
+    type: CreatedResponseDto,
   })
   @ApiResponse({ status: 409, description: '用户名或邮箱已存在' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponse> {
-    return this.usersService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto) {
+    const authData = await this.usersService.register(registerDto);
+    return new CreatedResponseDto(authData, '用户注册成功');
   }
 
   @Post('login')
@@ -51,13 +58,14 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: '登录成功',
-    type: AuthResponse,
+    type: SuccessResponseDto,
   })
   @ApiResponse({ status: 404, description: '用户不存在' })
   @ApiResponse({ status: 401, description: '密码错误' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponse> {
-    return this.usersService.login(loginDto);
+  async login(@Body() loginDto: LoginDto) {
+    const authData = await this.usersService.login(loginDto);
+    return new SuccessResponseDto(authData, '登录成功');
   }
 
   @Post('refresh')
@@ -85,13 +93,17 @@ export class UsersController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '用户登出',
-    description: '登出当前用户，使令牌失效',
+    description: '登出当前用户，使令牌失效。需要在Header中传入Bearer Token。',
   })
-  @ApiResponse({ status: 200, description: '登出成功' })
+  @ApiResponse({
+    status: 200,
+    description: '登出成功',
+    type: LogoutResponseDto,
+  })
   @ApiResponse({ status: 401, description: '未授权访问' })
-  async logout(@Request() req: any): Promise<{ message: string }> {
+  async logout(@Request() req: any) {
     await this.usersService.logout(Number(req.user.sub));
-    return { message: '登出成功' };
+    return new SuccessResponseDto({ message: '登出成功' }, '用户登出成功');
   }
 
   @Get('profile')
@@ -99,17 +111,23 @@ export class UsersController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '获取用户信息',
-    description: '获取当前登录用户的详细信息',
+    description:
+      '获取当前登录用户的详细信息。通过JWT Token自动识别用户身份，无需传入用户ID。',
   })
-  @ApiResponse({ status: 200, description: '获取用户信息成功' })
+  @ApiResponse({
+    status: 200,
+    description: '获取用户信息成功',
+    type: UserProfileResponseDto,
+  })
   @ApiResponse({ status: 401, description: '未授权访问' })
   async getProfile(@Request() req: any) {
     const user = await this.usersService.findById(Number(req.user.sub));
-    return {
+    const userData = {
       id: user.id,
       username: user.username,
       email: user.email,
       createdAt: user.createdAt,
     };
+    return new SuccessResponseDto(userData, '获取用户信息成功');
   }
 }
