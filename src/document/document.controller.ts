@@ -12,7 +12,15 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { DocumentService } from './document.service';
 import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto } from './dto';
 import { ResponseDto } from '../common/dto';
@@ -25,6 +33,22 @@ export class DocumentController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '创建文档',
+    description:
+      '创建新的文档。需要JWT认证，会自动使用当前登录用户作为文档创建者。',
+  })
+  @ApiBody({
+    type: CreateDocumentDto,
+    description: '文档创建信息',
+  })
+  @ApiResponse({
+    status: 201,
+    description: '文档创建成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async create(
     @Body() createDocumentDto: CreateDocumentDto,
     @Request() req: any,
@@ -55,6 +79,40 @@ export class DocumentController {
   }
 
   @Get()
+  @ApiOperation({
+    summary: '获取文档列表',
+    description:
+      '获取文档列表，支持分页、搜索和筛选。无需登录即可查看公开文档，登录后可查看更多权限相关的文档。',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: '页码，默认为1',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: '每页数量，默认为10',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'title',
+    required: false,
+    description: '文档标题搜索关键词',
+    example: '我的文档',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: '文档类型过滤',
+    example: 'text',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取文档列表成功',
+  })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async findAll(@Query() query: QueryDocumentDto, @Request() req?: any) {
     try {
       // 获取当前用户ID（如果已登录）
@@ -83,6 +141,22 @@ export class DocumentController {
   }
 
   @Get(':id')
+  @ApiOperation({
+    summary: '获取文档详情',
+    description: '根据文档ID获取文档的详细信息。',
+  })
+  @ApiParam({
+    name: 'id',
+    description: '文档ID',
+    example: 1,
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取文档详情成功',
+  })
+  @ApiResponse({ status: 404, description: '文档不存在' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     try {
       const document = await this.documentService.findDocsOne(id);
@@ -115,6 +189,29 @@ export class DocumentController {
 
   @Put(':id')
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '更新文档',
+    description: '更新指定ID的文档信息。需要JWT认证，只有文档创建者才能更新。',
+  })
+  @ApiParam({
+    name: 'id',
+    description: '文档ID',
+    example: 1,
+    type: 'number',
+  })
+  @ApiBody({
+    type: UpdateDocumentDto,
+    description: '文档更新信息',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '文档更新成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 403, description: '权限不足' })
+  @ApiResponse({ status: 404, description: '文档不存在' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDocumentDto: UpdateDocumentDto,
@@ -148,6 +245,25 @@ export class DocumentController {
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '删除文档',
+    description: '删除指定ID的文档。需要JWT认证，只有文档创建者才能删除。',
+  })
+  @ApiParam({
+    name: 'id',
+    description: '文档ID',
+    example: 1,
+    type: 'number',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '文档删除成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 403, description: '权限不足' })
+  @ApiResponse({ status: 404, description: '文档不存在' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
     try {
       const currentUserId = Number(req.user.sub); // 确保是数字类型
