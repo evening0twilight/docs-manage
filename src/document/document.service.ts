@@ -88,26 +88,36 @@ export class DocumentService {
     query: QueryDocumentDto,
     currentUserId?: number,
   ): Promise<{ list: DocumentEntity[]; count: number }> {
+    console.log('=== findDocsList Debug Info ===');
+    console.log('currentUserId:', currentUserId);
+    console.log('query:', query);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+
     const qb = this.documentRepository.createQueryBuilder('doc');
 
     // 基础查询条件 - 排除已删除
     qb.where('doc.isDeleted = :isDeleted', { isDeleted: false });
+    console.log('Base condition added: isDeleted = false');
 
     // 搜索条件
     if (query.keyword) {
       qb.andWhere('doc.title LIKE :keyword', { keyword: `%${query.keyword}%` });
+      console.log('Keyword filter added:', query.keyword);
     }
 
     if (query.type) {
       const typeNumber = this.getTypeNumber(query.type);
       qb.andWhere('doc.type = :type', { type: typeNumber });
+      console.log('Type filter added:', query.type, '->', typeNumber);
     }
 
     // 权限控制逻辑
+    console.log('Applying permission logic...');
     // 检查query中的可见性过滤器或onlyMine标志
     if (query.onlyMine === true && currentUserId) {
       // 只显示自己的文档
       qb.andWhere('doc.creator_id = :currentUserId', { currentUserId });
+      console.log('Permission: Only own docs for user', currentUserId);
     } else if (
       query.visibility === DocumentVisibility.PRIVATE &&
       currentUserId
@@ -120,6 +130,7 @@ export class DocumentService {
           private: 'private',
         },
       );
+      console.log('Permission: Only own private docs for user', currentUserId);
     } else if (currentUserId) {
       // 如果用户已登录，只显示公开文档和自己的文档
       qb.andWhere(
@@ -129,20 +140,57 @@ export class DocumentService {
           currentUserId,
         },
       );
+      console.log('Permission: Public docs OR own docs for user', currentUserId);
     } else {
       // 未登录用户只能看公开文档
       qb.andWhere('doc.visibility = :public', { public: 'public' });
+      console.log('Permission: Only public docs (no user logged in)');
     }
+
+    console.log('Generated SQL:', qb.getSql());
+    console.log('Query parameters:', qb.getParameters());
 
     qb.orderBy('doc.created_time', 'DESC');
 
     const count = await qb.getCount();
+    console.log('Total count before pagination:', count);
+    
     const { page = 1, limit = 10 } = query;
+    console.log('Pagination: page =', page, ', limit =', limit);
 
     qb.limit(Number(limit));
     qb.offset(Number(limit) * (Number(page) - 1));
 
     const docs = await qb.getMany();
+    console.log('Retrieved docs count:', docs.length);
+    
+    if (docs.length > 0) {
+      console.log('Sample document:', {
+        id: docs[0].id,
+        title: docs[0].title,
+        visibility: docs[0].visibility,
+        creatorId: docs[0].creatorId,
+        isDeleted: docs[0].isDeleted,
+      });
+    }
+
+    // 为了调试，让我们也查询一下数据库中的原始数据
+    const allDocs = await this.documentRepository.find({
+      take: 5,
+      order: { created_time: 'DESC' },
+    });
+    console.log(
+      'Raw docs in DB (first 5):',
+      allDocs.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        visibility: doc.visibility,
+        creatorId: doc.creatorId,
+        isDeleted: doc.isDeleted,
+      })),
+    );
+
+    console.log('=== End Debug Info ===');
 
     return { list: docs, count: count };
   }
