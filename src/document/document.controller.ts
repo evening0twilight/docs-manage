@@ -79,10 +79,12 @@ export class DocumentController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '获取文档列表',
     description:
-      '获取文档列表，支持分页、搜索和筛选。无需登录即可查看公开文档，登录后可查看更多权限相关的文档。',
+      '获取文档列表，支持分页、搜索和筛选。需要JWT认证，显示当前用户的私有文档和所有公开文档。',
   })
   @ApiQuery({
     name: 'page',
@@ -113,10 +115,10 @@ export class DocumentController {
     description: '获取文档列表成功',
   })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async findAll(@Query() query: QueryDocumentDto, @Request() req?: any) {
+  async findAll(@Query() query: QueryDocumentDto, @Request() req: any) {
     try {
-      // 获取当前用户ID（如果已登录）
-      const currentUserId = req?.user?.sub ? Number(req.user.sub) : undefined;
+      // 获取当前用户ID（JWT Guard确保用户已认证）
+      const currentUserId = Number(req.user.sub);
 
       const result = await this.documentService.findDocsList(
         query,
