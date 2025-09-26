@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DocumentEntity } from './document.entity';
 import { DocumentRo } from './interfaces/docs.interface';
-import { CreateDocumentDto, DocumentType } from './dto/create-document.dto';
+import {
+  CreateDocumentDto,
+  DocumentType,
+  DocumentVisibility,
+} from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { QueryDocumentDto } from './dto/query-document.dto';
 
@@ -83,41 +87,39 @@ export class DocumentService {
   async findDocsList(
     query: QueryDocumentDto,
     currentUserId?: number,
-  ): Promise<DocumentRo> {
-    const qb = this.documentRepository
-      .createQueryBuilder('doc')
-      .leftJoinAndSelect('doc.creator', 'creator')
-      .where('doc.isDeleted = :isDeleted', { isDeleted: false });
+  ): Promise<{ list: DocumentEntity[]; count: number }> {
+    const qb = this.documentRepository.createQueryBuilder('doc');
 
-    // 关键词搜索
+    // 基础查询条件 - 排除已删除
+    qb.where('doc.isDeleted = :isDeleted', { isDeleted: false });
+
+    // 搜索条件
     if (query.keyword) {
-      qb.andWhere('(doc.title LIKE :keyword OR doc.content LIKE :keyword)', {
-        keyword: `%${query.keyword}%`,
-      });
+      qb.andWhere('doc.title LIKE :keyword', { keyword: `%${query.keyword}%` });
     }
 
-    // 文档类型过滤
     if (query.type) {
-      qb.andWhere('doc.type = :type', { type: query.type });
+      const typeNumber = this.getTypeNumber(query.type);
+      qb.andWhere('doc.type = :type', { type: typeNumber });
     }
 
-    // 可见性过滤
-    if (query.visibility) {
-      qb.andWhere('doc.visibility = :visibility', {
-        visibility: query.visibility,
-      });
-    }
-
-    // 创建者过滤
-    if (query.creatorId) {
-      qb.andWhere('doc.creator_id = :creatorId', {
-        creatorId: query.creatorId,
-      });
-    }
-
-    // 只查询自己的文档
-    if (query.onlyMine && currentUserId) {
+    // 权限控制逻辑
+    // 检查query中的可见性过滤器或onlyMine标志
+    if (query.onlyMine === true && currentUserId) {
+      // 只显示自己的文档
       qb.andWhere('doc.creator_id = :currentUserId', { currentUserId });
+    } else if (
+      query.visibility === DocumentVisibility.PRIVATE &&
+      currentUserId
+    ) {
+      // 只显示自己的私有文档
+      qb.andWhere(
+        'doc.creator_id = :currentUserId AND doc.visibility = :private',
+        {
+          currentUserId,
+          private: 'private',
+        },
+      );
     } else if (currentUserId) {
       // 如果用户已登录，只显示公开文档和自己的文档
       qb.andWhere(
@@ -285,5 +287,25 @@ export class DocumentService {
     const docs = await qb.getMany();
 
     return { list: docs, count: count };
+  }
+
+  // 工具方法：将DocumentType枚举转换为数字
+  private getTypeNumber(type: DocumentType): number {
+    switch (type) {
+      case DocumentType.TEXT:
+        return 1;
+      case DocumentType.IMAGE:
+        return 2;
+      case DocumentType.PDF:
+        return 3;
+      case DocumentType.WORD:
+        return 4;
+      case DocumentType.EXCEL:
+        return 5;
+      case DocumentType.OTHER:
+        return 6;
+      default:
+        return 6; // other
+    }
   }
 }
