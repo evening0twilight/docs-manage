@@ -71,8 +71,8 @@ export class DocumentService {
       author: 'System', // 可以后续从用户信息中获取
       thumb_url: createDocumentDto.filePath || '',
       type: typeNumber,
-      creatorId,
-      visibility: createDocumentDto.visibility || 'private',
+      creatorId, // 直接设置creatorId
+      visibility: createDocumentDto.visibility || 'public', // 默认为公开，便于测试
       isDeleted: false,
     };
 
@@ -110,16 +110,18 @@ export class DocumentService {
 
     // 创建者过滤
     if (query.creatorId) {
-      qb.andWhere('doc.creatorId = :creatorId', { creatorId: query.creatorId });
+      qb.andWhere('doc.creator_id = :creatorId', {
+        creatorId: query.creatorId,
+      });
     }
 
     // 只查询自己的文档
     if (query.onlyMine && currentUserId) {
-      qb.andWhere('doc.creatorId = :currentUserId', { currentUserId });
+      qb.andWhere('doc.creator_id = :currentUserId', { currentUserId });
     } else if (currentUserId) {
       // 如果用户已登录，只显示公开文档和自己的文档
       qb.andWhere(
-        '(doc.visibility = :public OR doc.creatorId = :currentUserId)',
+        '(doc.visibility = :public OR doc.creator_id = :currentUserId)',
         {
           public: 'public',
           currentUserId,
@@ -253,7 +255,7 @@ export class DocumentService {
     const qb = this.documentRepository
       .createQueryBuilder('doc')
       .leftJoinAndSelect('doc.creator', 'creator')
-      .where('doc.creatorId = :creatorId', { creatorId })
+      .where('doc.creator_id = :creatorId', { creatorId })
       .andWhere('doc.isDeleted = :isDeleted', { isDeleted: false });
 
     if (query.keyword) {

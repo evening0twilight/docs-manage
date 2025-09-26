@@ -30,16 +30,17 @@ export class DocumentEntity {
   @Column('tinyint')
   type: number;
 
-  // 创建者关联 - 多对一关系
+  // 创建者ID - 普通字段
+  @Column({ name: 'creator_id' })
+  creatorId: number;
+
+  // 创建者关联 - 多对一关系（不使用eager加载来避免冲突）
   @ManyToOne(() => UserEntity, (user) => user.documents, {
     eager: false,
-    onDelete: 'CASCADE', // 用户删除时，其文档也删除
+    onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'creator_id' })
   creator: UserEntity;
-
-  @Column({ name: 'creator_id' })
-  creatorId: number;
 
   // 文档权限级别
   @Column({
