@@ -140,7 +140,10 @@ export class DocumentService {
           currentUserId,
         },
       );
-      console.log('Permission: Public docs OR own docs for user', currentUserId);
+      console.log(
+        'Permission: Public docs OR own docs for user',
+        currentUserId,
+      );
     } else {
       // 未登录用户只能看公开文档
       qb.andWhere('doc.visibility = :public', { public: 'public' });
@@ -154,7 +157,7 @@ export class DocumentService {
 
     const count = await qb.getCount();
     console.log('Total count before pagination:', count);
-    
+
     const { page = 1, limit = 10 } = query;
     console.log('Pagination: page =', page, ', limit =', limit);
 
@@ -163,7 +166,7 @@ export class DocumentService {
 
     const docs = await qb.getMany();
     console.log('Retrieved docs count:', docs.length);
-    
+
     if (docs.length > 0) {
       console.log('Sample document:', {
         id: docs[0].id,

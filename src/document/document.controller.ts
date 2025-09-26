@@ -78,6 +78,49 @@ export class DocumentController {
     }
   }
 
+  @Get('public')
+  @ApiOperation({
+    summary: '获取公开文档列表（无需认证）',
+    description: '获取所有公开文档列表，无需JWT认证。主要用于调试和公开访问。',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: '页码，默认为1',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: '每页数量，默认为10',
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取公开文档列表成功',
+  })
+  async findPublic(@Query() query: QueryDocumentDto) {
+    try {
+      // 不传用户ID，只返回公开文档
+      const result = await this.documentService.findDocsList(query);
+      return new ResponseDto(
+        true,
+        '公开文档列表获取成功',
+        result,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '公开文档列表获取失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
