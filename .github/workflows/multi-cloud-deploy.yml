@@ -1,8 +1,9 @@
 name: 多云环境部署
 on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+  # push:
+  #   branches: [ main, master ]
+  #   tags: [ 'v*' ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
