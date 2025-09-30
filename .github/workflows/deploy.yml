@@ -86,10 +86,10 @@ jobs:
           echo "停止现有服务..."
           sudo docker-compose down || true
           
-          # 清理旧镜像和数据卷（重新初始化数据库）
-          echo "清理旧镜像和数据卷..."
+          # 清理旧镜像（保留数据库数据）
+          echo "清理旧镜像..."
           sudo docker system prune -f || true
-          sudo docker volume rm docs-manage_mysql_data || true
+          # sudo docker volume rm docs-manage_mysql_data || true  # 注释掉，保留数据库数据
           
           # 重新构建并启动服务（所有构建都在容器内完成）
           echo "构建并启动服务..."
