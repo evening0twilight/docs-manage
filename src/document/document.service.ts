@@ -1,9 +1,21 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
-import { FileSystemItemEntity, ItemType, DocumentType } from './document.entity';
-import { CreateFileSystemItemDto, CreateDocumentDto, CreateFolderDto, DocumentVisibility } from './dto/create-document.dto';
-import { UpdateFileSystemItemDto, UpdateDocumentDto } from './dto/update-document.dto';
+import {
+  FileSystemItemEntity,
+  ItemType,
+  DocumentType,
+} from './document.entity';
+import {
+  CreateFileSystemItemDto,
+  CreateDocumentDto,
+  CreateFolderDto,
+  DocumentVisibility,
+} from './dto/create-document.dto';
+import {
+  UpdateFileSystemItemDto,
+  UpdateDocumentDto,
+} from './dto/update-document.dto';
 import { QueryDocumentDto } from './dto/query-document.dto';
 
 @Injectable()
@@ -39,15 +51,15 @@ export class DocumentService {
     // 创建文档时自动设置创建者
     const documentData: Partial<FileSystemItemEntity> = {
       name: title, // 新字段名
+      description: createDocumentDto.description || '', // 文档描述
       itemType: ItemType.DOCUMENT, // 设置为文档类型
       content: createDocumentDto.content || '',
       author: 'System', // 可以后续从用户信息中获取
-      thumb_url: createDocumentDto.filePath || '',
       documentType: createDocumentDto.type || DocumentType.TEXT, // 使用新的枚举字段
       creatorId, // 直接设置creatorId
       visibility: createDocumentDto.visibility || 'public', // 默认为公开，便于测试
       isDeleted: false,
-      parentId: undefined, // 默认在根目录
+      parentId: createDocumentDto.parentId || undefined, // 默认在根目录
       sortOrder: 0, // 默认排序
     };
 
@@ -82,6 +94,7 @@ export class DocumentService {
     // 创建文件夹
     const folderData: Partial<FileSystemItemEntity> = {
       name,
+      description: createFolderDto.description || '', // 文件夹描述
       itemType: ItemType.FOLDER,
       creatorId,
       parentId: createFolderDto.parentId || undefined,
@@ -128,7 +141,10 @@ export class DocumentService {
       // 只显示自己的文档
       qb.andWhere('doc.creator_id = :currentUserId', { currentUserId });
       console.log('Permission: Only own docs for user', currentUserId);
-    } else if (query.visibility === DocumentVisibility.PRIVATE && currentUserId) {
+    } else if (
+      query.visibility === DocumentVisibility.PRIVATE &&
+      currentUserId
+    ) {
       // 只显示自己的私有文档
       qb.andWhere(
         'doc.creator_id = :currentUserId AND doc.visibility = :private',
@@ -319,14 +335,18 @@ export class DocumentService {
       });
 
       if (existingFolder) {
-        throw new HttpException('同一位置已存在同名文件夹', HttpStatus.CONFLICT);
+        throw new HttpException(
+          '同一位置已存在同名文件夹',
+          HttpStatus.CONFLICT,
+        );
       }
     }
 
     // 准备更新数据
     const updateData: Partial<FileSystemItemEntity> = {};
     if (updateDto.name !== undefined) updateData.name = updateDto.name;
-    if (updateDto.parentId !== undefined) updateData.parentId = updateDto.parentId;
+    if (updateDto.parentId !== undefined)
+      updateData.parentId = updateDto.parentId;
 
     const updatedItem = this.documentRepository.merge(folderItem, updateData);
     return this.documentRepository.save(updatedItem);
@@ -343,7 +363,11 @@ export class DocumentService {
     }
 
     // 验证文档更新字段
-    if (updateDto.name && updateDto.title && updateDto.name !== updateDto.title) {
+    if (
+      updateDto.name &&
+      updateDto.title &&
+      updateDto.name !== updateDto.title
+    ) {
       throw new HttpException(
         '文档更新时不能同时指定不同的name和title',
         HttpStatus.BAD_REQUEST,
@@ -373,7 +397,8 @@ export class DocumentService {
     if (updateDto.title !== undefined) updateData.name = updateDto.title; // 文档用title更新name字段
     if (updateDto.content !== undefined) updateData.content = updateDto.content;
     if (updateDto.type !== undefined) updateData.documentType = updateDto.type;
-    if (updateDto.parentId !== undefined) updateData.parentId = updateDto.parentId;
+    if (updateDto.parentId !== undefined)
+      updateData.parentId = updateDto.parentId;
 
     const updatedItem = this.documentRepository.merge(documentItem, updateData);
     return this.documentRepository.save(updatedItem);
@@ -492,16 +517,19 @@ export class DocumentService {
     });
 
     // 构建树形结构
-    const itemMap = new Map<number, FileSystemItemEntity & { children?: FileSystemItemEntity[] }>();
+    const itemMap = new Map<
+      number,
+      FileSystemItemEntity & { children?: FileSystemItemEntity[] }
+    >();
     const rootItems: FileSystemItemEntity[] = [];
 
     // 先将所有项目放入map
-    allItems.forEach(item => {
+    allItems.forEach((item) => {
       itemMap.set(item.id, { ...item, children: [] });
     });
 
     // 构建父子关系
-    allItems.forEach(item => {
+    allItems.forEach((item) => {
       if (item.parentId) {
         const parent = itemMap.get(item.parentId);
         if (parent) {

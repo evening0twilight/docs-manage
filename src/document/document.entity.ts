@@ -34,6 +34,9 @@ export class FileSystemItemEntity {
   @Column({ length: 100 })
   name: string; // 文件夹名称或文档标题
 
+  @Column({ length: 500, nullable: true })
+  description: string; // 描述信息（文件夹和文档都可以有）
+
   @Column({
     type: 'enum',
     enum: ItemType,

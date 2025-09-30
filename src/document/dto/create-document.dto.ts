@@ -124,6 +124,16 @@ export class CreateDocumentDto {
   content?: string;
 
   @ApiPropertyOptional({
+    description: '文档描述',
+    example: '这是一个用于测试的文档',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString({ message: '文档描述必须是字符串' })
+  @MaxLength(500, { message: '描述最多500个字符' })
+  description?: string;
+
+  @ApiPropertyOptional({
     description: '文档类型',
     enum: DocumentType,
     example: DocumentType.TEXT,
@@ -133,12 +143,13 @@ export class CreateDocumentDto {
   type?: DocumentType;
 
   @ApiPropertyOptional({
-    description: '缩略图URL',
-    example: 'https://example.com/thumb.jpg',
+    description: '父文件夹ID（为空则创建在根目录）',
+    example: 1,
   })
   @IsOptional()
-  @IsString({ message: '缩略图URL必须是字符串' })
-  filePath?: string;
+  @Type(() => Number)
+  @IsNumber({}, { message: '父文件夹ID必须是数字' })
+  parentId?: number;
 
   @ApiPropertyOptional({
     description: '可见性',
@@ -168,6 +179,16 @@ export class CreateFolderDto {
   name: string;
 
   @ApiPropertyOptional({
+    description: '文件夹描述',
+    example: '这是一个项目文件夹',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString({ message: '文件夹描述必须是字符串' })
+  @MaxLength(500, { message: '描述最多500个字符' })
+  description?: string;
+
+  @ApiPropertyOptional({
     description: '父文件夹ID（为空则创建在根目录）',
     example: 1,
   })
@@ -184,13 +205,4 @@ export class CreateFolderDto {
   @IsOptional()
   @IsEnum(DocumentVisibility, { message: '可见性类型不正确' })
   visibility?: DocumentVisibility;
-
-  @ApiPropertyOptional({
-    description: '排序顺序',
-    example: 0,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({}, { message: '排序顺序必须是数字' })
-  sortOrder?: number;
 }

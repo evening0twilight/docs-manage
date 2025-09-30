@@ -22,7 +22,13 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { DocumentService } from './document.service';
-import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto, CreateFolderDto, UpdateFileSystemItemDto } from './dto';
+import {
+  CreateDocumentDto,
+  UpdateDocumentDto,
+  QueryDocumentDto,
+  CreateFolderDto,
+  UpdateFileSystemItemDto,
+} from './dto';
 import { ResponseDto } from '../common/dto';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -54,11 +60,20 @@ export class DocumentController {
     @Request() req: any,
   ) {
     try {
-      const currentUserId = Number(req.user.sub); // 确保是数字类型
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
       const document = await this.documentService.create(
         createDocumentDto,
-        currentUserId,
+        Number(currentUserId), // 确保是数字类型
       );
       return new ResponseDto(
         true,
@@ -83,7 +98,8 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '创建文件夹',
-    description: '创建新的文件夹。需要JWT认证，会自动使用当前登录用户作为文件夹创建者。',
+    description:
+      '创建新的文件夹。需要JWT认证，会自动使用当前登录用户作为文件夹创建者。',
   })
   @ApiBody({
     type: CreateFolderDto,
@@ -95,9 +111,12 @@ export class DocumentController {
   })
   @ApiResponse({ status: 401, description: '未授权访问' })
   @ApiResponse({ status: 409, description: '文件夹名称已存在' })
-  async createFolder(@Body() createFolderDto: CreateFolderDto, @Request() req: any) {
+  async createFolder(
+    @Body() createFolderDto: CreateFolderDto,
+    @Request() req: any,
+  ) {
     try {
-      const currentUserId = req.user?.id;
+      const currentUserId = req.user?.id || req.user?.sub;
       if (!currentUserId) {
         return new ResponseDto(
           false,
@@ -110,7 +129,7 @@ export class DocumentController {
 
       const folder = await this.documentService.createFolder(
         createFolderDto,
-        currentUserId,
+        Number(currentUserId), // 确保是数字类型
       );
       return new ResponseDto(
         true,
@@ -135,7 +154,8 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '获取文件夹内容',
-    description: '获取指定文件夹下的所有文件和子文件夹。传入parentId为null或0表示获取根目录内容。',
+    description:
+      '获取指定文件夹下的所有文件和子文件夹。传入parentId为null或0表示获取根目录内容。',
   })
   @ApiParam({
     name: 'parentId',
@@ -165,12 +185,12 @@ export class DocumentController {
 
       // 处理根目录的情况
       const actualParentId = parentId === 0 ? null : parentId;
-      
+
       const contents = await this.documentService.getFolderContents(
         actualParentId,
         currentUserId,
       );
-      
+
       return new ResponseDto(
         true,
         '获取文件夹内容成功',
@@ -194,7 +214,8 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '获取文件夹树结构',
-    description: '获取当前用户的完整文件夹树结构，包含所有文件夹和文档的层次关系。',
+    description:
+      '获取当前用户的完整文件夹树结构，包含所有文件夹和文档的层次关系。',
   })
   @ApiResponse({
     status: 200,
@@ -215,7 +236,7 @@ export class DocumentController {
       }
 
       const tree = await this.documentService.getFolderTree(currentUserId);
-      
+
       return new ResponseDto(
         true,
         '获取文件夹树成功',
@@ -393,7 +414,8 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '智能更新文件系统项目（文件夹或文档）',
-    description: '智能更新指定ID的文件夹或文档。系统会自动识别项目类型并应用相应的更新逻辑。需要JWT认证，只有创建者才能更新。',
+    description:
+      '智能更新指定ID的文件夹或文档。系统会自动识别项目类型并应用相应的更新逻辑。需要JWT认证，只有创建者才能更新。',
   })
   @ApiParam({
     name: 'id',
@@ -405,26 +427,26 @@ export class DocumentController {
     type: UpdateFileSystemItemDto,
     description: '更新信息 - 系统会根据现有项目类型智能处理字段',
     examples: {
-      '更新文件夹': {
+      更新文件夹: {
         value: {
           name: '新文件夹名称',
-          parentId: 2
-        }
+          parentId: 2,
+        },
       },
-      '更新文档': {
+      更新文档: {
         value: {
           title: '新文档标题',
           content: '更新的文档内容...',
           type: 'TEXT',
-          parentId: 1
-        }
+          parentId: 1,
+        },
       },
-      '移动到根目录': {
+      移动到根目录: {
         value: {
-          parentId: null
-        }
-      }
-    }
+          parentId: null,
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
@@ -448,7 +470,7 @@ export class DocumentController {
         updateDto,
         currentUserId,
       );
-      
+
       return new ResponseDto(
         true,
         '更新成功',
