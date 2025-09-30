@@ -1,5 +1,5 @@
-export { CreateDocumentDto } from './create-document.dto';
-export { UpdateDocumentDto } from './update-document.dto';
+export { CreateDocumentDto, CreateFolderDto, CreateFileSystemItemDto } from './create-document.dto';
+export { UpdateDocumentDto, UpdateFileSystemItemDto } from './update-document.dto';
 export { QueryDocumentDto } from './query-document.dto';
 export { CreateUserDto, UpdateUserDto, LoginDto } from './user.dto';
 export {
