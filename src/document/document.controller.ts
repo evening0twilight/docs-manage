@@ -172,7 +172,7 @@ export class DocumentController {
     @Request() req: any,
   ) {
     try {
-      const currentUserId = req.user?.id;
+      const currentUserId = req.user?.id || req.user?.sub;
       if (!currentUserId) {
         return new ResponseDto(
           false,
@@ -188,7 +188,7 @@ export class DocumentController {
 
       const contents = await this.documentService.getFolderContents(
         actualParentId,
-        currentUserId,
+        Number(currentUserId),
       );
 
       return new ResponseDto(
@@ -224,7 +224,7 @@ export class DocumentController {
   @ApiResponse({ status: 401, description: '未授权访问' })
   async getFolderTree(@Request() req: any) {
     try {
-      const currentUserId = req.user?.id;
+      const currentUserId = req.user?.id || req.user?.sub;
       if (!currentUserId) {
         return new ResponseDto(
           false,
@@ -235,7 +235,9 @@ export class DocumentController {
         );
       }
 
-      const tree = await this.documentService.getFolderTree(currentUserId);
+      const tree = await this.documentService.getFolderTree(
+        Number(currentUserId),
+      );
 
       return new ResponseDto(
         true,
