@@ -549,9 +549,11 @@ export class DocumentService {
     console.log('=== getFolderTree Debug ===');
     console.log('Total items found:', allItems.length);
     console.log('Items breakdown:', {
-      folders: allItems.filter(item => item.itemType === ItemType.FOLDER).length,
-      documents: allItems.filter(item => item.itemType === ItemType.DOCUMENT).length,
-      rootLevel: allItems.filter(item => !item.parentId).length,
+      folders: allItems.filter((item) => item.itemType === ItemType.FOLDER)
+        .length,
+      documents: allItems.filter((item) => item.itemType === ItemType.DOCUMENT)
+        .length,
+      rootLevel: allItems.filter((item) => !item.parentId).length,
     });
 
     // 构建树形结构
@@ -563,13 +565,18 @@ export class DocumentService {
 
     // 先将所有项目放入map
     allItems.forEach((item) => {
-      itemMap.set(item.id, { ...item, children: [] });
+      // 只给文件夹类型添加children字段，文档类型不需要
+      const itemWithChildren =
+        item.itemType === ItemType.FOLDER
+          ? { ...item, children: [] }
+          : { ...item };
+      itemMap.set(item.id, itemWithChildren);
     });
 
     // 构建父子关系
     allItems.forEach((item) => {
       const currentItem = itemMap.get(item.id)!;
-      
+
       if (item.parentId) {
         // 有父文件夹的项目
         const parent = itemMap.get(item.parentId);
@@ -578,7 +585,9 @@ export class DocumentService {
           parent.children.push(currentItem);
         } else {
           // 父文件夹不存在，放到根级别
-          console.warn(`Parent folder ${item.parentId} not found for item ${item.id}, placing at root level`);
+          console.warn(
+            `Parent folder ${item.parentId} not found for item ${item.id}, placing at root level`,
+          );
           rootItems.push(currentItem);
         }
       } else {
@@ -589,8 +598,10 @@ export class DocumentService {
 
     console.log('Root level items:', rootItems.length);
     console.log('Root items breakdown:', {
-      folders: rootItems.filter(item => item.itemType === ItemType.FOLDER).length,
-      documents: rootItems.filter(item => item.itemType === ItemType.DOCUMENT).length,
+      folders: rootItems.filter((item) => item.itemType === ItemType.FOLDER)
+        .length,
+      documents: rootItems.filter((item) => item.itemType === ItemType.DOCUMENT)
+        .length,
     });
 
     return rootItems;
@@ -684,13 +695,18 @@ export class DocumentService {
 
     // 先将所有项目放入map
     allItems.forEach((item) => {
-      itemMap.set(item.id, { ...item, children: [] });
+      // 只给文件夹类型添加children字段，文档类型不需要
+      const itemWithChildren =
+        item.itemType === ItemType.FOLDER
+          ? { ...item, children: [] }
+          : { ...item };
+      itemMap.set(item.id, itemWithChildren);
     });
 
     // 构建父子关系
     allItems.forEach((item) => {
       const currentItem = itemMap.get(item.id)!;
-      
+
       if (item.parentId) {
         // 有父文件夹的项目
         const parent = itemMap.get(item.parentId);
@@ -709,8 +725,10 @@ export class DocumentService {
 
     console.log('Final root items:', rootItems.length);
     console.log('Root items breakdown:', {
-      folders: rootItems.filter((item) => item.itemType === ItemType.FOLDER).length,
-      documents: rootItems.filter((item) => item.itemType === ItemType.DOCUMENT).length,
+      folders: rootItems.filter((item) => item.itemType === ItemType.FOLDER)
+        .length,
+      documents: rootItems.filter((item) => item.itemType === ItemType.DOCUMENT)
+        .length,
     });
 
     return rootItems;
