@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { DocumentEntity } from '../document/document.entity';
+import { FileSystemItemEntity } from '../document/document.entity';
 
 @Entity('users')
 export class UserEntity {
@@ -29,9 +29,14 @@ export class UserEntity {
   @Column({ default: true })
   isActive: boolean;
 
-  // 用户创建的文档 - 一对多关系
-  @OneToMany(() => DocumentEntity, (document) => document.creator)
-  documents: DocumentEntity[];
+  // 用户创建的文件系统项目（文档和文件夹） - 一对多关系
+  @OneToMany(() => FileSystemItemEntity, (item) => item.creator)
+  fileSystemItems: FileSystemItemEntity[];
+
+  // 兼容性别名
+  get documents() {
+    return this.fileSystemItems;
+  }
 
   @CreateDateColumn()
   createdAt: Date;

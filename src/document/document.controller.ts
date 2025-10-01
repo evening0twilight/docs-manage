@@ -22,7 +22,12 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { DocumentService } from './document.service';
-import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentDto } from './dto';
+import {
+  CreateDocumentDto,
+  CreateFolderDto,
+  UpdateFileSystemItemDto,
+  QueryDocumentDto,
+} from './dto';
 import { ResponseDto } from '../common/dto';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -54,11 +59,20 @@ export class DocumentController {
     @Request() req: any,
   ) {
     try {
-      const currentUserId = Number(req.user.sub); // 确保是数字类型
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
       const document = await this.documentService.create(
         createDocumentDto,
-        currentUserId,
+        Number(currentUserId), // 确保是数字类型
       );
       return new ResponseDto(
         true,
@@ -78,42 +92,55 @@ export class DocumentController {
     }
   }
 
-  @Get('public')
+  @Post('folders')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: '获取公开文档列表（无需认证）',
-    description: '获取所有公开文档列表，无需JWT认证。主要用于调试和公开访问。',
+    summary: '创建文件夹',
+    description:
+      '创建新的文件夹。需要JWT认证，会自动使用当前登录用户作为文件夹创建者。',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    description: '页码，默认为1',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: '每页数量，默认为10',
-    example: 10,
+  @ApiBody({
+    type: CreateFolderDto,
+    description: '文件夹创建信息',
   })
   @ApiResponse({
-    status: 200,
-    description: '获取公开文档列表成功',
+    status: 201,
+    description: '文件夹创建成功',
   })
-  async findPublic(@Query() query: QueryDocumentDto) {
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 409, description: '文件夹名称已存在' })
+  async createFolder(
+    @Body() createFolderDto: CreateFolderDto,
+    @Request() req: any,
+  ) {
     try {
-      // 不传用户ID，只返回公开文档
-      const result = await this.documentService.findDocsList(query);
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const folder = await this.documentService.createFolder(
+        createFolderDto,
+        Number(currentUserId), // 确保是数字类型
+      );
       return new ResponseDto(
         true,
-        '公开文档列表获取成功',
-        result,
+        '文件夹创建成功',
+        folder,
         undefined,
-        HttpStatus.OK,
+        HttpStatus.CREATED,
       );
     } catch (error: any) {
       return new ResponseDto(
         false,
-        '公开文档列表获取失败',
+        '文件夹创建失败',
         undefined,
         String(error?.message || '未知错误'),
         HttpStatus.BAD_REQUEST,
@@ -121,30 +148,164 @@ export class DocumentController {
     }
   }
 
-  @Get()
+  @Get('folders/:folderId/path')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: '获取文档列表',
+    summary: '获取文件夹路径',
     description:
-      '获取文档列表，支持分页、搜索和筛选。需要JWT认证，显示当前用户的私有文档和所有公开文档。',
+      '获取指定文件夹的完整路径（面包屑导航），包含从根目录到当前文件夹的所有父级文件夹信息。',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    description: '页码，默认为1',
+  @ApiParam({
+    name: 'folderId',
+    description: '文件夹ID，0表示根目录',
     example: 1,
   })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    description: '每页数量，默认为10',
-    example: 10,
+  @ApiResponse({
+    status: 200,
+    description: '获取文件夹路径成功',
+    schema: {
+      example: {
+        success: true,
+        message: '获取文件夹路径成功',
+        data: {
+          currentFolder: { id: 3, name: '子文件夹', parentId: 1 },
+          breadcrumbs: [
+            { id: null, name: '根目录', parentId: null },
+            { id: 1, name: '父文件夹', parentId: null },
+            { id: 3, name: '子文件夹', parentId: 1 },
+          ],
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 404, description: '文件夹不存在' })
+  async getFolderPath(
+    @Param('folderId', ParseIntPipe) folderId: number,
+    @Request() req: any,
+  ) {
+    try {
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      // 处理根目录的情况
+      if (folderId === 0) {
+        return new ResponseDto(
+          true,
+          '获取文件夹路径成功',
+          {
+            currentFolder: { id: null, name: '根目录', parentId: null },
+            breadcrumbs: [{ id: null, name: '根目录', parentId: null }],
+          },
+          undefined,
+          HttpStatus.OK,
+        );
+      }
+
+      const pathData = await this.documentService.getFolderPath(
+        folderId,
+        Number(currentUserId),
+      );
+
+      return new ResponseDto(
+        true,
+        '获取文件夹路径成功',
+        pathData,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '获取文件夹路径失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('folders/:parentId/contents')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '获取文件夹内容',
+    description:
+      '获取指定文件夹下的所有文件和子文件夹。传入parentId为null或0表示获取根目录内容。',
+  })
+  @ApiParam({
+    name: 'parentId',
+    description: '父文件夹ID，null或0表示根目录',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取文件夹内容成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  async getFolderContents(
+    @Param('parentId', ParseIntPipe) parentId: number,
+    @Request() req: any,
+  ) {
+    try {
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      // 处理根目录的情况
+      const actualParentId = parentId === 0 ? null : parentId;
+
+      const result = await this.documentService.getFolderContentsWithMeta(
+        actualParentId,
+        Number(currentUserId),
+      );
+
+      return new ResponseDto(
+        true,
+        '获取文件夹内容成功',
+        result,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '获取文件夹内容失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('tree')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '获取文件夹树结构（统一数据接口）',
+    description:
+      '获取当前用户的完整文件夹树结构，包含所有文件夹和文档的层次关系。支持搜索和过滤，作为统一的数据获取接口。',
   })
   @ApiQuery({
-    name: 'title',
+    name: 'keyword',
     required: false,
-    description: '文档标题搜索关键词',
+    description: '搜索关键词（文档标题或文件夹名称）',
     example: '我的文档',
   })
   @ApiQuery({
@@ -153,23 +314,129 @@ export class DocumentController {
     description: '文档类型过滤',
     example: 'text',
   })
+  @ApiQuery({
+    name: 'visibility',
+    required: false,
+    description: '可见性过滤',
+    example: 'public',
+  })
   @ApiResponse({
     status: 200,
-    description: '获取文档列表成功',
+    description: '获取文件夹树成功',
   })
-  @ApiResponse({ status: 400, description: '请求参数错误' })
-  async findAll(@Query() query: QueryDocumentDto, @Request() req: any) {
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  async getFolderTree(@Query() query: QueryDocumentDto, @Request() req: any) {
     try {
-      // 获取当前用户ID（JWT Guard确保用户已认证）
-      const currentUserId = Number(req.user.sub);
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
-      const result = await this.documentService.findDocsList(
+      const tree = await this.documentService.getFolderTreeWithFilter(
+        Number(currentUserId),
         query,
-        currentUserId,
       );
+
       return new ResponseDto(
         true,
-        '文档列表获取成功',
+        '获取文件夹树成功',
+        tree,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '获取文件夹树失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('batch')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '批量获取文档详情',
+    description:
+      '根据文档ID列表批量获取文档的详细信息，减少网络请求次数，适用于Keep-alive标签页快速加载。',
+  })
+  @ApiBody({
+    description: '文档ID列表',
+    schema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'number' },
+          example: [1, 2, 3],
+          description: '要获取的文档ID数组',
+        },
+      },
+      required: ['ids'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '批量获取文档成功',
+    schema: {
+      example: {
+        success: true,
+        message: '批量获取文档成功',
+        data: {
+          documents: [
+            { id: 1, name: '文档1', content: '...' },
+            { id: 2, name: '文档2', content: '...' },
+          ],
+          notFound: [3],
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
+  async batchGetDocuments(
+    @Body() body: { ids: number[] },
+    @Request() req: any,
+  ) {
+    try {
+      const currentUserId = req.user?.id || req.user?.sub;
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      if (!body.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
+        return new ResponseDto(
+          false,
+          '参数错误',
+          undefined,
+          'ids字段必须是非空数组',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const result = await this.documentService.batchGetDocuments(
+        body.ids,
+        Number(currentUserId),
+      );
+
+      return new ResponseDto(
+        true,
+        '批量获取文档成功',
         result,
         undefined,
         HttpStatus.OK,
@@ -177,7 +444,7 @@ export class DocumentController {
     } catch (error: any) {
       return new ResponseDto(
         false,
-        '文档列表获取失败',
+        '批量获取文档失败',
         undefined,
         String(error?.message || '未知错误'),
         HttpStatus.BAD_REQUEST,
@@ -236,51 +503,75 @@ export class DocumentController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: '更新文档',
-    description: '更新指定ID的文档信息。需要JWT认证，只有文档创建者才能更新。',
+    summary: '智能更新文件系统项目（文件夹或文档）',
+    description:
+      '智能更新指定ID的文件夹或文档。系统会自动识别项目类型并应用相应的更新逻辑。需要JWT认证，只有创建者才能更新。',
   })
   @ApiParam({
     name: 'id',
-    description: '文档ID',
+    description: '文件系统项目ID（文件夹或文档）',
     example: 1,
     type: 'number',
   })
   @ApiBody({
-    type: UpdateDocumentDto,
-    description: '文档更新信息',
+    type: UpdateFileSystemItemDto,
+    description: '更新信息 - 系统会根据现有项目类型智能处理字段',
+    examples: {
+      更新文件夹: {
+        value: {
+          name: '新文件夹名称',
+          parentId: 2,
+        },
+      },
+      更新文档: {
+        value: {
+          title: '新文档标题',
+          content: '更新的文档内容...',
+          type: 'TEXT',
+          parentId: 1,
+        },
+      },
+      移动到根目录: {
+        value: {
+          parentId: null,
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
-    description: '文档更新成功',
+    description: '更新成功',
   })
   @ApiResponse({ status: 401, description: '未授权访问' })
   @ApiResponse({ status: 403, description: '权限不足' })
-  @ApiResponse({ status: 404, description: '文档不存在' })
+  @ApiResponse({ status: 404, description: '项目不存在' })
+  @ApiResponse({ status: 409, description: '名称冲突' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateDocumentDto: UpdateDocumentDto,
+    @Body() updateDto: UpdateFileSystemItemDto,
     @Request() req: any,
   ) {
     try {
       const currentUserId = Number(req.user.sub); // 确保是数字类型
 
-      const document = await this.documentService.updateById(
+      const updatedItem = await this.documentService.updateFileSystemItem(
         id,
-        updateDocumentDto,
+        updateDto,
         currentUserId,
       );
+
       return new ResponseDto(
         true,
-        '文档更新成功',
-        document,
+        '更新成功',
+        updatedItem,
         undefined,
         HttpStatus.OK,
       );
     } catch (error: any) {
       return new ResponseDto(
         false,
-        '文档更新失败',
+        '更新失败',
         undefined,
         String(error?.message || '未知错误'),
         HttpStatus.BAD_REQUEST,

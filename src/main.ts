@@ -74,6 +74,19 @@ async function bootstrap() {
   await setupCrypto(); // 确保 crypto 在应用启动前设置好
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // 配置CORS
+  app.enableCors({
+    origin: [
+      'http://localhost:5173', // 本地开发
+      'http://localhost:3000',
+      'http://165.227.56.186', // 生产环境
+      'http://165.227.56.186:3000',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
+
   // 配置静态文件服务
   const publicPath = join(__dirname, '..', 'public');
   const altPublicPath = join(process.cwd(), 'public');

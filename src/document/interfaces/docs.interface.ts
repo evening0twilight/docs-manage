@@ -1,7 +1,7 @@
 // 接口定义
-import { DocumentEntity } from '../document.entity';
+import { FileSystemItemEntity } from '../document.entity';
 
 export interface DocumentRo {
-  list: DocumentEntity[];
+  list: FileSystemItemEntity[];
   count: number;
 }
