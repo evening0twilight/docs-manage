@@ -124,14 +124,13 @@ export class DocumentService {
 
     // 搜索条件
     if (query.keyword) {
-      qb.andWhere('doc.title LIKE :keyword', { keyword: `%${query.keyword}%` });
+      qb.andWhere('doc.name LIKE :keyword', { keyword: `%${query.keyword}%` });
       console.log('Keyword filter added:', query.keyword);
     }
 
     if (query.type) {
-      const typeNumber = this.getTypeNumber(query.type);
-      qb.andWhere('doc.type = :type', { type: typeNumber });
-      console.log('Type filter added:', query.type, '->', typeNumber);
+      qb.andWhere('doc.documentType = :type', { type: query.type });
+      console.log('Type filter added:', query.type);
     }
 
     // 权限控制逻辑
@@ -436,13 +435,13 @@ export class DocumentService {
       .andWhere('doc.isDeleted = :isDeleted', { isDeleted: false });
 
     if (query.keyword) {
-      qb.andWhere('(doc.title LIKE :keyword OR doc.content LIKE :keyword)', {
+      qb.andWhere('(doc.name LIKE :keyword OR doc.content LIKE :keyword)', {
         keyword: `%${query.keyword}%`,
       });
     }
 
     if (query.type) {
-      qb.andWhere('doc.type = :type', { type: query.type });
+      qb.andWhere('doc.documentType = :type', { type: query.type });
     }
 
     if (query.visibility) {
@@ -462,24 +461,6 @@ export class DocumentService {
     const docs = await qb.getMany();
 
     return { list: docs, count: count };
-  }
-
-  // 工具方法：将DocumentType枚举转换为数字
-  private getTypeNumber(type: DocumentType): number {
-    switch (type) {
-      case DocumentType.TEXT:
-        return 1;
-      case DocumentType.IMAGE:
-        return 2;
-      case DocumentType.WORD:
-        return 3;
-      case DocumentType.EXCEL:
-        return 4;
-      case DocumentType.OTHER:
-        return 5;
-      default:
-        return 5; // other
-    }
   }
 
   // 获取文件夹内容 (文件夹和文档)
