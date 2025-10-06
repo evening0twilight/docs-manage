@@ -778,13 +778,6 @@ export class DocumentService {
       }
     }
 
-    // 在最前面添加根目录（创建一个特殊的根目录对象）
-    const rootFolder = new FileSystemItemEntity();
-    rootFolder.id = null as any;
-    rootFolder.name = '根目录';
-    rootFolder.parentId = null as any;
-    breadcrumbs.unshift(rootFolder);
-
     return {
       currentFolder,
       breadcrumbs,
