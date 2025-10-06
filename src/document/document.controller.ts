@@ -234,6 +234,73 @@ export class DocumentController {
     }
   }
 
+  @Get('documents/:documentId/path')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '获取文档路径',
+    description: '获取指定文档的完整路径信息，包含面包屑导航。',
+  })
+  @ApiParam({
+    name: 'documentId',
+    description: '文档ID',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取文档路径成功',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: '获取文档路径成功' },
+        data: {
+          type: 'object',
+          properties: {
+            currentDocument: { type: 'object', description: '当前文档信息' },
+            breadcrumbs: {
+              type: 'array',
+              items: { type: 'object' },
+              description: '面包屑路径（只包含文件夹）',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 403, description: '无权访问此文档' })
+  @ApiResponse({ status: 404, description: '文档不存在' })
+  async getDocumentPath(
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Request() req: any,
+  ) {
+    try {
+      const currentUserId = req.user?.id || req.user?.sub;
+
+      const pathData = await this.documentService.getDocumentPath(
+        documentId,
+        currentUserId ? Number(currentUserId) : undefined,
+      );
+
+      return new ResponseDto(
+        true,
+        '获取文档路径成功',
+        pathData,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '获取文档路径失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get('folders/:parentId/contents')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')

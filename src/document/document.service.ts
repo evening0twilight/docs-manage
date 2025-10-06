@@ -239,6 +239,15 @@ export class DocumentService {
       throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
     }
 
+    // 只返回创建者的用户名，不返回敏感信息
+    if (doc.creator) {
+      const creatorInfo = {
+        id: doc.creator.id,
+        username: doc.creator.username,
+      };
+      doc.creator = creatorInfo as any;
+    }
+
     return doc;
   }
 
@@ -780,6 +789,64 @@ export class DocumentService {
 
     return {
       currentFolder,
+      breadcrumbs,
+    };
+  }
+
+  // 获取文档路径（面包屑导航）
+  async getDocumentPath(
+    documentId: number,
+    currentUserId?: number,
+  ): Promise<{
+    currentDocument: FileSystemItemEntity;
+    breadcrumbs: FileSystemItemEntity[];
+  }> {
+    // 首先验证文档是否存在且有权限访问
+    const currentDocument = await this.documentRepository.findOne({
+      where: {
+        id: documentId,
+        isDeleted: false,
+        itemType: ItemType.DOCUMENT,
+      },
+    });
+
+    if (!currentDocument) {
+      throw new HttpException('文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    // 权限检查
+    if (
+      currentDocument.visibility === 'private' &&
+      currentDocument.creatorId !== currentUserId
+    ) {
+      throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
+    }
+
+    // 构建面包屑路径（只包含文件夹，不包含文档本身）
+    const breadcrumbs: FileSystemItemEntity[] = [];
+    let currentFolderId: number | null = currentDocument.parentId;
+
+    // 从文档的父文件夹开始向上遍历到根目录
+    while (currentFolderId) {
+      const folder = await this.documentRepository.findOne({
+        where: {
+          id: currentFolderId,
+          creatorId: currentDocument.creatorId, // 使用文档创建者的ID
+          isDeleted: false,
+          itemType: ItemType.FOLDER,
+        },
+      });
+
+      if (folder) {
+        breadcrumbs.unshift(folder);
+        currentFolderId = folder.parentId;
+      } else {
+        break;
+      }
+    }
+
+    return {
+      currentDocument,
       breadcrumbs,
     };
   }
