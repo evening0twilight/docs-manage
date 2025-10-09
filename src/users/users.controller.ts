@@ -7,6 +7,7 @@ import {
   UseGuards,
   Get,
   Request,
+  Put,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +23,8 @@ import {
   AuthResponse,
   RefreshTokenDto,
 } from './dto/auth.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CreatedResponseDto,
@@ -129,5 +132,63 @@ export class UsersController {
       createdAt: user.createdAt,
     };
     return new SuccessResponseDto(userData, '获取用户信息成功');
+  }
+
+  @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '更新用户信息',
+    description:
+      '更新当前登录用户的信息。可以更新用户名、邮箱等信息。通过JWT Token自动识别用户身份。',
+  })
+  @ApiBody({
+    type: UpdateUserDto,
+    description: '需要更新的用户信息',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '更新用户信息成功',
+    type: UserProfileResponseDto,
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 409, description: '用户名或邮箱已被占用' })
+  async updateProfile(@Request() req: any, @Body() updateDto: UpdateUserDto) {
+    const userId = Number(req.user.sub);
+    const updatedUser = await this.usersService.updateUser(userId, updateDto);
+    const userData = {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      createdAt: updatedUser.createdAt,
+    };
+    return new SuccessResponseDto(userData, '更新用户信息成功');
+  }
+
+  @Put('password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '修改密码',
+    description:
+      '修改当前登录用户的密码。需要提供当前密码、新密码和确认密码。通过JWT Token自动识别用户身份。',
+  })
+  @ApiBody({
+    type: ChangePasswordDto,
+    description: '密码修改信息',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '密码修改成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问或当前密码错误' })
+  @ApiResponse({ status: 400, description: '新密码和确认密码不一致' })
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    const userId = Number(req.user.sub);
+    await this.usersService.changePassword(userId, changePasswordDto);
+    return new SuccessResponseDto({}, '密码修改成功');
   }
 }

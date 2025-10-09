@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
 import { RegisterDto, LoginDto, AuthResponse } from './dto/auth.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/password.dto';
 
 @Injectable()
 export class UsersService {
@@ -110,6 +112,78 @@ export class UsersService {
       throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
     }
     return user;
+  }
+
+  // 更新用户信息
+  async updateUser(
+    userId: number,
+    updateDto: UpdateUserDto,
+  ): Promise<UserEntity> {
+    // 检查用户是否存在
+    const user = await this.findById(userId);
+
+    // 如果要更新用户名，检查是否已被占用
+    if (updateDto.username && updateDto.username !== user.username) {
+      const existingUser = await this.userRepository.findOne({
+        where: { username: updateDto.username },
+      });
+      if (existingUser) {
+        throw new HttpException('用户名已被占用', HttpStatus.CONFLICT);
+      }
+    }
+
+    // 如果要更新邮箱，检查是否已被占用
+    if (updateDto.email && updateDto.email !== user.email) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: updateDto.email },
+      });
+      if (existingUser) {
+        throw new HttpException('邮箱已被占用', HttpStatus.CONFLICT);
+      }
+    }
+
+    // 更新用户信息
+    Object.assign(user, updateDto);
+    return await this.userRepository.save(user);
+  }
+
+  // 修改密码
+  async changePassword(
+    userId: number,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<void> {
+    const { currentPassword, newPassword, confirmPassword } = changePasswordDto;
+
+    // 检查新密码和确认密码是否一致
+    if (newPassword !== confirmPassword) {
+      throw new HttpException('新密码和确认密码不一致', HttpStatus.BAD_REQUEST);
+    }
+
+    // 检查新密码是否与旧密码相同
+    if (currentPassword === newPassword) {
+      throw new HttpException(
+        '新密码不能与当前密码相同',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 查找用户
+    const user = await this.findById(userId);
+
+    // 验证当前密码
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      String(user.password),
+    );
+    if (!isPasswordValid) {
+      throw new HttpException('当前密码错误', HttpStatus.UNAUTHORIZED);
+    }
+
+    // 加密新密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    await this.userRepository.update(userId, { password: hashedPassword });
   }
 
   // 生成双token
