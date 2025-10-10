@@ -9,3 +9,8 @@ export {
   ChangePasswordDto,
 } from './password.dto';
 export { QueryUserDto } from './query-user.dto';
+export {
+  SendVerificationCodeDto,
+  VerifyCodeDto,
+  RegisterWithCodeDto,
+} from './email-verification.dto';

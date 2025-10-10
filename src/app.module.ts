@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { DocumentModule } from './document/document.module';
 import { LogsModule } from './logs/logs.module';
+import { MailModule } from './common/mail/mail.module';
 import { envConfig } from './config/env';
 // import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
@@ -34,6 +35,7 @@ import { APP_PIPE } from '@nestjs/core';
         logging: configService.get<string>('NODE_ENV') !== 'production', // 生产环境也开启日志用于调试
       }),
     }),
+    MailModule,
     UsersModule,
     DocumentModule,
     LogsModule,

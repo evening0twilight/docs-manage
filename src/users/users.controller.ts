@@ -8,6 +8,7 @@ import {
   Get,
   Request,
   Put,
+  Ip,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,12 @@ import {
 } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
+import {
+  SendVerificationCodeDto,
+  RegisterWithCodeDto,
+  ResetPasswordDto,
+} from './dto/email-verification.dto';
+import { EmailVerificationService } from '../common/mail/email-verification.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CreatedResponseDto,
@@ -36,7 +43,10 @@ import {
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly emailVerificationService: EmailVerificationService,
+  ) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -190,5 +200,61 @@ export class UsersController {
     const userId = Number(req.user.sub);
     await this.usersService.changePassword(userId, changePasswordDto);
     return new SuccessResponseDto({}, '密码修改成功');
+  }
+
+  @Post('send-verification-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '发送验证码',
+    description: '发送邮箱验证码(注册或重置密码)',
+  })
+  @ApiBody({ type: SendVerificationCodeDto })
+  @ApiResponse({ status: 200, description: '验证码已发送' })
+  @ApiResponse({ status: 429, description: '发送频率过高,请稍后再试' })
+  @ApiResponse({ status: 503, description: '邮件发送配额已用尽' })
+  async sendVerificationCode(
+    @Body() dto: SendVerificationCodeDto,
+    @Ip() ip: string,
+  ) {
+    const result = await this.emailVerificationService.sendVerificationCode(
+      dto.email,
+      dto.type,
+      ip,
+    );
+    return new SuccessResponseDto(result, '验证码已发送');
+  }
+
+  @Post('register-with-code')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: '使用验证码注册',
+    description: '通过邮箱验证码完成用户注册',
+  })
+  @ApiBody({ type: RegisterWithCodeDto })
+  @ApiResponse({
+    status: 201,
+    description: '注册成功',
+    type: CreatedResponseDto,
+  })
+  @ApiResponse({ status: 400, description: '验证码无效或已过期' })
+  @ApiResponse({ status: 409, description: '用户名或邮箱已存在' })
+  async registerWithCode(@Body() dto: RegisterWithCodeDto) {
+    const authData = await this.usersService.registerWithCode(dto);
+    return new CreatedResponseDto(authData, '用户注册成功');
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '重置密码',
+    description: '通过邮箱验证码重置密码',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ status: 200, description: '密码重置成功' })
+  @ApiResponse({ status: 400, description: '验证码无效或已过期' })
+  @ApiResponse({ status: 404, description: '用户不存在' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const result = await this.usersService.resetPasswordWithCode(dto);
+    return new SuccessResponseDto(result, '密码重置成功');
   }
 }
