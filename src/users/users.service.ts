@@ -8,6 +8,11 @@ import { UserEntity } from './user.entity';
 import { RegisterDto, LoginDto, AuthResponse } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
+import { EmailVerificationService } from '../common/mail/email-verification.service';
+import {
+  RegisterWithCodeDto,
+  ResetPasswordDto,
+} from './dto/email-verification.dto';
 
 @Injectable()
 export class UsersService {
@@ -16,6 +21,7 @@ export class UsersService {
     private userRepository: Repository<UserEntity>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailVerificationService: EmailVerificationService,
   ) {}
 
   // 注册用户
@@ -225,5 +231,73 @@ export class UsersService {
         email: user.email,
       },
     };
+  }
+
+  /**
+   * 使用验证码注册用户
+   * @param dto 注册信息(包含验证码)
+   * @returns 认证响应
+   */
+  async registerWithCode(dto: RegisterWithCodeDto): Promise<AuthResponse> {
+    const { username, password, email, code } = dto;
+
+    // 验证验证码
+    await this.emailVerificationService.verifyCode(email, code, 'register');
+
+    // 检查用户是否已存在
+    const existingUser = await this.userRepository.findOne({
+      where: [{ username }, { email }],
+    });
+
+    if (existingUser) {
+      throw new HttpException('用户名或邮箱已存在', HttpStatus.CONFLICT);
+    }
+
+    // 加密密码
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 创建用户
+    const user = this.userRepository.create({
+      username,
+      email,
+      password: hashedPassword,
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // 生成tokens
+    return this.generateTokens(savedUser);
+  }
+
+  /**
+   * 通过邮箱验证码重置密码
+   * @param dto 重置密码信息
+   * @returns 成功消息
+   */
+  async resetPasswordWithCode(
+    dto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    const { email, code, newPassword } = dto;
+
+    // 验证验证码
+    await this.emailVerificationService.verifyCode(
+      email,
+      code,
+      'reset_password',
+    );
+
+    // 查找用户
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+    }
+
+    // 加密新密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    await this.userRepository.update(user.id, { password: hashedPassword });
+
+    return { message: '密码重置成功' };
   }
 }
