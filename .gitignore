@@ -34,14 +34,21 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
+# dotenv environment variable files - 所有包含敏感信息的环境文件
 .env
-.env.development.local
-.env.test.local
 .env.local
+.env.*.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.prod
+.env.staging
 
-# 保留生产环境模板，但实际部署时的环境文件不提交
-# .env.production 作为模板可以提交，实际部署时重命名为 .env
+# 只允许 .env.example 模板文件提交
+!.env.example
 
 # temp directory
 .temp
