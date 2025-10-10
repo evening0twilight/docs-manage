@@ -32,6 +32,10 @@ export class AuthDto {
   password: string;
 }
 
+/**
+ * @deprecated 此 DTO 已废弃，请使用 RegisterWithCodeDto 进行邮箱验证注册
+ * 保留此类仅用于类型兼容性
+ */
 export class RegisterDto extends AuthDto {
   @ApiProperty({
     description: '邮箱地址',

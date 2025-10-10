@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
-import { RegisterDto, LoginDto, AuthResponse } from './dto/auth.dto';
+import { LoginDto, AuthResponse } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
@@ -23,35 +23,6 @@ export class UsersService {
     private configService: ConfigService,
     private emailVerificationService: EmailVerificationService,
   ) {}
-
-  // 注册用户
-  async register(dto: RegisterDto): Promise<AuthResponse> {
-    const { username, password, email } = dto;
-
-    // 检查用户是否已存在
-    const existingUser = await this.userRepository.findOne({
-      where: [{ username }, { email }],
-    });
-
-    if (existingUser) {
-      throw new HttpException('用户名或邮箱已存在', HttpStatus.CONFLICT);
-    }
-
-    // 加密密码
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 创建用户
-    const user = this.userRepository.create({
-      username,
-      email,
-      password: hashedPassword,
-    });
-
-    const savedUser = await this.userRepository.save(user);
-
-    // 生成tokens
-    return this.generateTokens(savedUser);
-  }
 
   // 用户登录
   async login(dto: LoginDto): Promise<AuthResponse> {

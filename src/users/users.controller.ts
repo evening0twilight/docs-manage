@@ -18,12 +18,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import {
-  RegisterDto,
-  LoginDto,
-  AuthResponse,
-  RefreshTokenDto,
-} from './dto/auth.dto';
+import { LoginDto, AuthResponse, RefreshTokenDto } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
 import {
@@ -47,22 +42,6 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly emailVerificationService: EmailVerificationService,
   ) {}
-
-  @Post('register')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: '用户注册', description: '创建新用户账户' })
-  @ApiBody({ type: RegisterDto, description: '用户注册信息' })
-  @ApiResponse({
-    status: 201,
-    description: '注册成功',
-    type: CreatedResponseDto,
-  })
-  @ApiResponse({ status: 409, description: '用户名或邮箱已存在' })
-  @ApiResponse({ status: 400, description: '请求参数错误' })
-  async register(@Body() registerDto: RegisterDto) {
-    const authData = await this.usersService.register(registerDto);
-    return new CreatedResponseDto(authData, '用户注册成功');
-  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
