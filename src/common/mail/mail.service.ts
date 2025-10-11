@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { MailConfig } from './mail.config';
 import { MailQuotaService } from './mail-quota.service';
 import { MailRateLimitService } from './mail-rate-limit.service';
@@ -28,6 +29,8 @@ export class MailService {
   private qqTransporter: Transporter;
   private _163Transporter: Transporter;
   private mailConfig: MailConfig;
+  private resendClient: Resend | null = null;
+  private mailProvider: 'smtp' | 'resend';
 
   constructor(
     private configService: ConfigService,
@@ -35,6 +38,8 @@ export class MailService {
     private rateLimitService: MailRateLimitService,
   ) {
     this.mailConfig = new MailConfig(configService);
+    this.mailProvider = (this.configService.get<string>('MAIL_PROVIDER') ||
+      'smtp') as 'smtp' | 'resend';
     this.initializeTransporters();
   }
 
@@ -42,7 +47,18 @@ export class MailService {
    * 初始化邮件传输器
    */
   private initializeTransporters(): void {
-    // 验证配置
+    if (this.mailProvider === 'resend') {
+      // 初始化 Resend 客户端
+      const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+      if (!resendApiKey) {
+        throw new Error('RESEND_API_KEY 未配置');
+      }
+      this.resendClient = new Resend(resendApiKey);
+      this.logger.log('Resend 邮件服务初始化成功');
+      return;
+    }
+
+    // SMTP 模式:验证配置
     const validation = this.mailConfig.validate();
     if (!validation.valid) {
       this.logger.error('邮件配置无效:', validation.errors);
@@ -58,6 +74,12 @@ export class MailService {
         user: this.mailConfig.qq.user,
         pass: this.mailConfig.qq.password,
       },
+      connectionTimeout: 30000, // 30秒连接超时
+      greetingTimeout: 30000, // 30秒握手超时
+      socketTimeout: 60000, // 60秒数据传输超时
+      pool: true, // 使用连接池
+      maxConnections: 5, // 最大连接数
+      maxMessages: 10, // 每个连接最多发送消息数
     });
 
     // 163邮箱传输器
@@ -69,9 +91,15 @@ export class MailService {
         user: this.mailConfig._163.user,
         pass: this.mailConfig._163.password,
       },
+      connectionTimeout: 30000, // 30秒连接超时
+      greetingTimeout: 30000, // 30秒握手超时
+      socketTimeout: 60000, // 60秒数据传输超时
+      pool: true, // 使用连接池
+      maxConnections: 5, // 最大连接数
+      maxMessages: 10, // 每个连接最多发送消息数
     });
 
-    this.logger.log('邮件服务初始化成功');
+    this.logger.log('SMTP 邮件服务初始化成功');
   }
 
   /**
@@ -274,6 +302,12 @@ export class MailService {
     provider: 'qq' | '163',
     options: SendMailOptions,
   ): Promise<void> {
+    // 如果使用 Resend
+    if (this.mailProvider === 'resend') {
+      return this.sendWithResend(options);
+    }
+
+    // SMTP 模式
     const transporter =
       provider === 'qq' ? this.qqTransporter : this._163Transporter;
     const from =
@@ -292,6 +326,40 @@ export class MailService {
     } catch (error) {
       error.provider = provider; // 附加provider信息用于日志记录
       throw error;
+    }
+  }
+
+  /**
+   * 使用 Resend API 发送邮件
+   */
+  private async sendWithResend(options: SendMailOptions): Promise<void> {
+    if (!this.resendClient) {
+      throw new Error('Resend 客户端未初始化');
+    }
+
+    const from =
+      this.configService.get<string>('RESEND_FROM') || 'onboarding@resend.dev';
+
+    try {
+      const { data, error } = await this.resendClient.emails.send({
+        from,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      if (error) {
+        throw new Error(`Resend 发送失败: ${error.message}`);
+      }
+
+      this.logger.log(`Resend 邮件发送成功: ${data?.id} -> ${options.to}`);
+    } catch (error) {
+      this.logger.error(`Resend 发送邮件失败: ${options.to}`, error);
+      throw new HttpException(
+        '邮件发送失败,请稍后重试',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
