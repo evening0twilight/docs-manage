@@ -35,6 +35,9 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN}
       - CORS_ORIGIN=${CORS_ORIGIN}
+      - MAIL_PROVIDER=${MAIL_PROVIDER}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM=${RESEND_FROM}
     ports:
       - "3000:3000"
     depends_on:
