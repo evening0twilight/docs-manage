@@ -267,7 +267,7 @@ export class UsersController {
     const avatarUrl = await this.uploadService.uploadFile(file, 'avatars');
 
     // 更新用户头像
-    const userId = Number(req.user.id);
+    const userId = Number(req.user.sub);
     await this.usersService.updateAvatar(userId, avatarUrl);
 
     return new SuccessResponseDto({ avatar: avatarUrl }, '头像上传成功');
