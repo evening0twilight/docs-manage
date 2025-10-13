@@ -126,7 +126,7 @@ export class UploadService {
         Key: key,
         Sign: true,
         Expires: expiresIn,
-      });
+      }) as string;
 
       return url;
     } catch (error) {
