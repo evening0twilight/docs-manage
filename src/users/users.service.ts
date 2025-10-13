@@ -271,4 +271,15 @@ export class UsersService {
 
     return { message: '密码重置成功' };
   }
+
+  /**
+   * 更新用户头像
+   * @param userId 用户ID
+   * @param avatarUrl 头像URL
+   * @returns 更新后的用户信息
+   */
+  async updateAvatar(userId: number, avatarUrl: string): Promise<UserEntity> {
+    await this.userRepository.update(userId, { avatar: avatarUrl });
+    return this.findById(userId);
+  }
 }

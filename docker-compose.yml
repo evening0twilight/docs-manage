@@ -38,6 +38,11 @@ services:
       - MAIL_PROVIDER=${MAIL_PROVIDER}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - RESEND_FROM=${RESEND_FROM}
+      - COS_SECRET_ID=${COS_SECRET_ID}
+      - COS_SECRET_KEY=${COS_SECRET_KEY}
+      - COS_BUCKET=${COS_BUCKET}
+      - COS_REGION=${COS_REGION}
+      - COS_DOMAIN=${COS_DOMAIN}
     ports:
       - "3000:3000"
     depends_on:

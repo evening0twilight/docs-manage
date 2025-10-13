@@ -24,6 +24,9 @@ export class UserEntity {
   password: string;
 
   @Column({ nullable: true, length: 500 })
+  avatar?: string;
+
+  @Column({ nullable: true, length: 500 })
   refreshToken?: string;
 
   @Column({ default: true })

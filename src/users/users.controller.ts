@@ -9,6 +9,9 @@ import {
   Request,
   Put,
   Ip,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +20,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { LoginDto, AuthResponse, RefreshTokenDto } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -27,6 +31,7 @@ import {
   ResetPasswordDto,
 } from './dto/email-verification.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
+import { UploadService } from '../common/upload/upload.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CreatedResponseDto,
@@ -41,6 +46,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly uploadService: UploadService,
   ) {}
 
   @Post('login')
@@ -235,5 +241,35 @@ export class UsersController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     const result = await this.usersService.resetPasswordWithCode(dto);
     return new SuccessResponseDto(result, '密码重置成功');
+  }
+
+  @Post('avatar')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '上传头像',
+    description: '上传用户头像图片',
+  })
+  @ApiResponse({ status: 200, description: '头像上传成功' })
+  @ApiResponse({ status: 400, description: '请选择要上传的头像' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  async uploadAvatar(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('请选择要上传的头像');
+    }
+
+    // 上传到腾讯云 COS
+    const avatarUrl = await this.uploadService.uploadFile(file, 'avatars');
+
+    // 更新用户头像
+    const userId = Number(req.user.id);
+    await this.usersService.updateAvatar(userId, avatarUrl);
+
+    return new SuccessResponseDto({ avatar: avatarUrl }, '头像上传成功');
   }
 }
