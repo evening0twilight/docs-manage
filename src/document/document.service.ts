@@ -7,7 +7,6 @@ import {
   DocumentType,
 } from './document.entity';
 import {
-  CreateFileSystemItemDto,
   CreateDocumentDto,
   CreateFolderDto,
   DocumentVisibility,
