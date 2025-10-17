@@ -46,6 +46,11 @@ export class UsersService {
       throw new HttpException('密码错误', HttpStatus.UNAUTHORIZED);
     }
 
+    // 更新最后登录时间
+    await this.userRepository.update(user.id, {
+      lastLoginAt: new Date(),
+    });
+
     // 生成tokens
     return this.generateTokens(user);
   }

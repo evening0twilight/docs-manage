@@ -124,7 +124,22 @@ export class UsersController {
       id: user.id,
       username: user.username,
       email: user.email,
+      avatar: user.avatar,
+      displayName: user.displayName,
+      phone: user.phone,
+      bio: user.bio,
+      location: user.location,
+      website: user.website,
+      organization: user.organization,
+      position: user.position,
+      statusColor: user.statusColor,
+      onlineStatus: user.onlineStatus,
+      lastActiveAt: user.lastActiveAt,
+      allowCollaboration: user.allowCollaboration,
+      showOnlineStatus: user.showOnlineStatus,
+      lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
     return new SuccessResponseDto(userData, '获取用户信息成功');
   }
@@ -155,7 +170,20 @@ export class UsersController {
       id: updatedUser.id,
       username: updatedUser.username,
       email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      displayName: updatedUser.displayName,
+      phone: updatedUser.phone,
+      bio: updatedUser.bio,
+      location: updatedUser.location,
+      website: updatedUser.website,
+      organization: updatedUser.organization,
+      position: updatedUser.position,
+      statusColor: updatedUser.statusColor,
+      onlineStatus: updatedUser.onlineStatus,
+      allowCollaboration: updatedUser.allowCollaboration,
+      showOnlineStatus: updatedUser.showOnlineStatus,
       createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt,
     };
     return new SuccessResponseDto(userData, '更新用户信息成功');
   }
