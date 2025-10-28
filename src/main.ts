@@ -5,7 +5,59 @@ import { join } from 'path';
 import { existsSync, readdirSync } from 'fs';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DataSource } from 'typeorm';
 import 'reflect-metadata';
+
+// 数据库迁移函数
+async function runMigrations(app: NestExpressApplication) {
+  const dataSource = app.get(DataSource);
+  const queryRunner = dataSource.createQueryRunner();
+
+  try {
+    await queryRunner.connect();
+    console.log('[Migration] 开始检查数据库迁移...');
+
+    // 检查 email_verification_codes 表是否存在
+    const tableExists = await queryRunner.hasTable('email_verification_codes');
+    if (!tableExists) {
+      console.log('[Migration] email_verification_codes 表不存在,跳过迁移');
+      return;
+    }
+
+    // 检查当前的 enum 值
+    const result = await queryRunner.query(`
+      SELECT COLUMN_TYPE 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'email_verification_codes' 
+      AND COLUMN_NAME = 'type'
+    `);
+
+    const currentType = result[0]?.COLUMN_TYPE || '';
+    console.log('[Migration] 当前 type 字段定义:', currentType);
+
+    // 检查是否已经包含 change_email
+    if (currentType.includes('change_email')) {
+      console.log('[Migration] ✅ change_email 类型已存在,无需迁移');
+      return;
+    }
+
+    // 执行迁移
+    console.log('[Migration] 开始添加 change_email 类型...');
+    await queryRunner.query(`
+      ALTER TABLE email_verification_codes 
+      MODIFY COLUMN type enum('register','reset_password','change_email') NOT NULL 
+      COMMENT '验证码类型'
+    `);
+
+    console.log('[Migration] ✅ 成功添加 change_email 验证码类型');
+  } catch (error) {
+    console.error('[Migration] ❌ 迁移失败:', error);
+    // 不抛出错误，避免影响应用启动
+  } finally {
+    await queryRunner.release();
+  }
+}
 
 // 修复 crypto 未定义问题 - 更强的 polyfill
 async function setupCrypto() {
@@ -73,6 +125,9 @@ function setupSwagger(app: NestExpressApplication) {
 async function bootstrap() {
   await setupCrypto(); // 确保 crypto 在应用启动前设置好
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 🚀 运行数据库迁移
+  await runMigrations(app);
 
   // 配置CORS
   app.enableCors({

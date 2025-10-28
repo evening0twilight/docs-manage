@@ -29,6 +29,7 @@ import {
   SendVerificationCodeDto,
   RegisterWithCodeDto,
   ResetPasswordDto,
+  ChangeEmailDto,
 } from './dto/email-verification.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
 import { UploadService } from '../common/upload/upload.service';
@@ -299,5 +300,57 @@ export class UsersController {
     await this.usersService.updateAvatar(userId, avatarUrl);
 
     return new SuccessResponseDto({ avatar: avatarUrl }, '头像上传成功');
+  }
+
+  @Put('email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '修改绑定邮箱',
+    description:
+      '修改当前用户的绑定邮箱。需要先向新邮箱发送验证码（type=change_email），然后提供新邮箱和验证码完成修改。',
+  })
+  @ApiBody({
+    type: ChangeEmailDto,
+    description: '修改邮箱信息',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '邮箱修改成功',
+    type: UserProfileResponseDto,
+  })
+  @ApiResponse({ status: 400, description: '验证码无效或已过期' })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 409, description: '该邮箱已被其他用户使用' })
+  async changeEmail(
+    @Request() req: any,
+    @Body() changeEmailDto: ChangeEmailDto,
+  ) {
+    const userId = Number(req.user.sub);
+    const updatedUser = await this.usersService.changeEmail(
+      userId,
+      changeEmailDto,
+    );
+    const userData = {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      displayName: updatedUser.displayName,
+      phone: updatedUser.phone,
+      bio: updatedUser.bio,
+      location: updatedUser.location,
+      website: updatedUser.website,
+      organization: updatedUser.organization,
+      position: updatedUser.position,
+      statusColor: updatedUser.statusColor,
+      onlineStatus: updatedUser.onlineStatus,
+      allowCollaboration: updatedUser.allowCollaboration,
+      showOnlineStatus: updatedUser.showOnlineStatus,
+      createdAt: updatedUser.createdAt,
+      updatedAt: updatedUser.updatedAt,
+    };
+    return new SuccessResponseDto(userData, '邮箱修改成功');
   }
 }

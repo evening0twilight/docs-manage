@@ -21,9 +21,9 @@ export class EmailVerificationCodeEntity {
 
   @Column({
     type: 'enum',
-    enum: ['register', 'reset_password'],
+    enum: ['register', 'reset_password', 'change_email'],
   })
-  type: 'register' | 'reset_password';
+  type: 'register' | 'reset_password' | 'change_email';
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt: Date;

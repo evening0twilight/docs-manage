@@ -11,13 +11,13 @@ export class SendVerificationCodeDto {
 
   @ApiProperty({
     description: '验证码类型',
-    enum: ['register', 'reset_password'],
+    enum: ['register', 'reset_password', 'change_email'],
     example: 'register',
   })
-  @IsEnum(['register', 'reset_password'], {
-    message: '验证码类型必须是 register 或 reset_password',
+  @IsEnum(['register', 'reset_password', 'change_email'], {
+    message: '验证码类型必须是 register、reset_password 或 change_email',
   })
-  type: 'register' | 'reset_password';
+  type: 'register' | 'reset_password' | 'change_email';
 }
 
 export class VerifyCodeDto {
@@ -38,13 +38,13 @@ export class VerifyCodeDto {
 
   @ApiProperty({
     description: '验证码类型',
-    enum: ['register', 'reset_password'],
+    enum: ['register', 'reset_password', 'change_email'],
     example: 'register',
   })
-  @IsEnum(['register', 'reset_password'], {
-    message: '验证码类型必须是 register 或 reset_password',
+  @IsEnum(['register', 'reset_password', 'change_email'], {
+    message: '验证码类型必须是 register、reset_password 或 change_email',
   })
-  type: 'register' | 'reset_password';
+  type: 'register' | 'reset_password' | 'change_email';
 }
 
 export class RegisterWithCodeDto {
@@ -106,4 +106,21 @@ export class ResetPasswordDto {
   @IsNotEmpty({ message: '新密码不能为空' })
   @Length(6, 50, { message: '密码长度必须在6-50个字符之间' })
   newPassword: string;
+}
+
+export class ChangeEmailDto {
+  @ApiProperty({
+    description: '新邮箱地址',
+    example: 'newemail@example.com',
+  })
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  newEmail: string;
+
+  @ApiProperty({
+    description: '6位数字验证码',
+    example: '123456',
+  })
+  @IsString()
+  @Length(6, 6, { message: '验证码必须是6位数字' })
+  code: string;
 }

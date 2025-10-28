@@ -12,6 +12,7 @@ import { EmailVerificationService } from '../common/mail/email-verification.serv
 import {
   RegisterWithCodeDto,
   ResetPasswordDto,
+  ChangeEmailDto,
 } from './dto/email-verification.dto';
 
 @Injectable()
@@ -285,6 +286,48 @@ export class UsersService {
    */
   async updateAvatar(userId: number, avatarUrl: string): Promise<UserEntity> {
     await this.userRepository.update(userId, { avatar: avatarUrl });
+    return this.findById(userId);
+  }
+
+  /**
+   * 修改绑定邮箱
+   * @param userId 用户ID
+   * @param dto 修改邮箱信息
+   * @returns 更新后的用户信息
+   */
+  async changeEmail(userId: number, dto: ChangeEmailDto): Promise<UserEntity> {
+    const { newEmail, code } = dto;
+
+    // 验证验证码
+    await this.emailVerificationService.verifyCode(
+      newEmail,
+      code,
+      'change_email',
+    );
+
+    // 检查新邮箱是否已被占用
+    const existingUser = await this.userRepository.findOne({
+      where: { email: newEmail },
+    });
+
+    if (existingUser) {
+      throw new HttpException('该邮箱已被其他用户使用', HttpStatus.CONFLICT);
+    }
+
+    // 获取当前用户信息
+    const user = await this.findById(userId);
+
+    // 检查新邮箱是否与当前邮箱相同
+    if (user.email === newEmail) {
+      throw new HttpException(
+        '新邮箱不能与当前邮箱相同',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 更新邮箱
+    await this.userRepository.update(userId, { email: newEmail });
+
     return this.findById(userId);
   }
 }

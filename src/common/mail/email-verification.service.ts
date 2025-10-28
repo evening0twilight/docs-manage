@@ -29,7 +29,7 @@ export class EmailVerificationService {
    */
   async sendVerificationCode(
     email: string,
-    type: 'register' | 'reset_password',
+    type: 'register' | 'reset_password' | 'change_email',
     ip: string,
   ): Promise<{ message: string }> {
     // 生成验证码
@@ -75,7 +75,7 @@ export class EmailVerificationService {
   async verifyCode(
     email: string,
     code: string,
-    type: 'register' | 'reset_password',
+    type: 'register' | 'reset_password' | 'change_email',
   ): Promise<boolean> {
     // 查找验证码
     const verificationCode = await this.verificationCodeRepo.findOne({
@@ -118,7 +118,7 @@ export class EmailVerificationService {
    */
   async getRecentCode(
     email: string,
-    type: 'register' | 'reset_password',
+    type: 'register' | 'reset_password' | 'change_email',
   ): Promise<EmailVerificationCodeEntity | null> {
     const oneMinuteAgo = new Date();
     oneMinuteAgo.setMinutes(oneMinuteAgo.getMinutes() - 1);
