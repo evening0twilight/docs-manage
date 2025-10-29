@@ -275,13 +275,26 @@ export class UsersController {
   @Post('avatar')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '上传头像',
-    description: '上传用户头像图片',
+    description:
+      '上传用户头像图片，返回图片 URL。前端需要调用更新用户信息接口来保存头像 URL。',
   })
-  @ApiResponse({ status: 200, description: '头像上传成功' })
+  @ApiResponse({
+    status: 200,
+    description: '头像上传成功，返回图片 URL',
+    schema: {
+      example: {
+        code: 200,
+        message: '头像上传成功',
+        data: {
+          avatar: 'https://xxx.cos.ap-xxx.myqcloud.com/avatars/xxx.jpg',
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 400, description: '请选择要上传的头像' })
   @ApiResponse({ status: 401, description: '未授权' })
   async uploadAvatar(
@@ -292,14 +305,13 @@ export class UsersController {
       throw new BadRequestException('请选择要上传的头像');
     }
 
-    // 上传到腾讯云 COS
+    // 只上传到腾讯云 COS，不更新数据库
     const avatarUrl = await this.uploadService.uploadFile(file, 'avatars');
 
-    // 更新用户头像
-    const userId = Number(req.user.sub);
-    await this.usersService.updateAvatar(userId, avatarUrl);
-
-    return new SuccessResponseDto({ avatar: avatarUrl }, '头像上传成功');
+    return new SuccessResponseDto(
+      { avatar: avatarUrl },
+      '头像上传成功，请调用更新用户信息接口保存',
+    );
   }
 
   @Put('email')
