@@ -79,6 +79,14 @@ export class UserEntity {
   @Column({ nullable: true, type: 'timestamp', comment: '最后登录时间' })
   lastLoginAt?: Date;
 
+  // ========== 邮箱修改相关字段 ==========
+  @Column({
+    nullable: true,
+    type: 'timestamp',
+    comment: '上次邮箱修改时间（用于冷却期检查）',
+  })
+  lastEmailChangedAt?: Date;
+
   // 用户创建的文件系统项目（文档和文件夹） - 一对多关系
   @OneToMany(() => FileSystemItemEntity, (item) => item.creator)
   fileSystemItems: FileSystemItemEntity[];

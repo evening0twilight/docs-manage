@@ -159,6 +159,125 @@ export class MailService {
   }
 
   /**
+   * 发送邮箱变更通知邮件（发送到旧邮箱）
+   */
+  async sendEmailChangeNotification(
+    oldEmail: string,
+    newEmail: string,
+    username: string,
+    ipAddress?: string,
+  ): Promise<void> {
+    const changeTime = new Date().toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+    });
+
+    const subject = '【安全通知】您的账号邮箱已修改';
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; padding: 30px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+    .content { padding: 40px 30px; }
+    .alert-box { background-color: #fff3cd; border-left: 4px solid #ff6b6b; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+    .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .info-table td { padding: 12px; border-bottom: 1px solid #e0e0e0; }
+    .info-table td:first-child { font-weight: 600; color: #666; width: 100px; }
+    .info-table td:last-child { color: #333; }
+    .footer { background-color: #f8f9fa; padding: 20px 30px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0; }
+    .security-tips { background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px; }
+    .security-tips h3 { margin-top: 0; color: #333; font-size: 16px; }
+    .security-tips ul { margin: 10px 0; padding-left: 20px; color: #666; }
+    .security-tips li { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚠️ 邮箱变更通知</h1>
+    </div>
+    <div class="content">
+      <div class="alert-box">
+        <strong>安全提醒：</strong> 您的账号绑定邮箱已被修改。如果这不是您本人操作，请立即联系客服。
+      </div>
+      
+      <p>尊敬的 <strong>${username}</strong>，</p>
+      <p>您的账号绑定邮箱已成功修改。详细信息如下：</p>
+      
+      <table class="info-table">
+        <tr>
+          <td>原邮箱</td>
+          <td>${oldEmail}</td>
+        </tr>
+        <tr>
+          <td>新邮箱</td>
+          <td>${newEmail}</td>
+        </tr>
+        <tr>
+          <td>修改时间</td>
+          <td>${changeTime}</td>
+        </tr>
+        ${ipAddress ? `<tr><td>操作IP</td><td>${ipAddress}</td></tr>` : ''}
+      </table>
+
+      <div class="security-tips">
+        <h3>🔒 安全提示</h3>
+        <ul>
+          <li>如果这是您本人操作，请忽略此邮件</li>
+          <li>如果您未进行此操作，说明您的账号可能已被他人控制</li>
+          <li>请立即修改密码，并检查账号安全设置</li>
+          <li>建议启用两步验证以提高账号安全性</li>
+        </ul>
+      </div>
+
+      <p style="margin-top: 30px; color: #666;">
+        <strong>注意：</strong>修改邮箱后，您将使用新邮箱进行登录和接收通知。
+      </p>
+    </div>
+    <div class="footer">
+      <p>此邮件由系统自动发送，请勿直接回复</p>
+      <p>© ${new Date().getFullYear()} 文档管理系统. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const text = `
+【安全通知】您的账号邮箱已修改
+
+尊敬的 ${username}，
+
+您的账号绑定邮箱已成功修改：
+
+原邮箱：${oldEmail}
+新邮箱：${newEmail}
+修改时间：${changeTime}
+${ipAddress ? `操作IP：${ipAddress}` : ''}
+
+安全提示：
+- 如果这是您本人操作，请忽略此邮件
+- 如果您未进行此操作，说明您的账号可能已被他人控制
+- 请立即修改密码，并检查账号安全设置
+
+此邮件由系统自动发送，请勿直接回复。
+© ${new Date().getFullYear()} 文档管理系统
+`;
+
+    await this.sendMail({
+      to: oldEmail,
+      subject,
+      html,
+      text,
+      ipAddress,
+    });
+  }
+
+  /**
    * 发送邮件的核心方法
    */
   async sendMail(options: SendMailOptions): Promise<void> {
