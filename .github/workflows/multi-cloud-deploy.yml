@@ -1,7 +1,7 @@
 name: 多云环境部署
 on:
   # push:
-  #   branches: [ main, master ]
+  #   branches: [ master ]
   #   tags: [ 'v*' ]
   workflow_dispatch:
 
@@ -59,7 +59,7 @@ jobs:
   deploy-aliyun:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     environment: aliyun-production
     
     steps:
@@ -81,7 +81,7 @@ jobs:
   deploy-tencent:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     environment: tencent-production
     
     steps:
