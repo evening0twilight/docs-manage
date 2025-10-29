@@ -1,0 +1,51 @@
+### 测试文件上传接口
+
+### 1. 先登录获取 token
+POST http://localhost:3000/api/users/login
+Content-Type: application/json
+
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+
+### 2. 上传单张图片
+POST http://localhost:3000/api/upload/image
+Authorization: Bearer YOUR_TOKEN_HERE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/your/image.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 3. 上传用户头像
+POST http://localhost:3000/api/users/avatar
+Authorization: Bearer YOUR_TOKEN_HERE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/your/avatar.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 4. 批量上传图片
+POST http://localhost:3000/api/upload/images
+Authorization: Bearer YOUR_TOKEN_HERE
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="files"; filename="test1.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/your/image1.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="files"; filename="test2.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/your/image2.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

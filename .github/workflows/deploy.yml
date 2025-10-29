@@ -1,0 +1,130 @@
+name: 自动部署到云服务器
+
+on:
+  push:
+    branches: [ main, master ]  # 只在 main 和 master 分支触发部署
+  # 可选：允许手动触发
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 安装 pnpm
+      run: npm install -g pnpm
+      
+    - name: 安装依赖
+      run: pnpm install --no-frozen-lockfile
+      
+    - name: 构建项目
+      run: pnpm run build
+      
+    - name: 检查构建文件
+      run: |
+        ls -la dist/
+        ls -la dist/src/
+        test -f dist/src/main.js && echo "✅ main.js 文件存在" || echo "❌ main.js 文件不存在"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+    - name: 部署到服务器
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        port: ${{ secrets.SERVER_PORT }}
+        script: |
+          echo "开始部署..."
+          
+          # 创建部署目录
+          mkdir -p /home/deploy
+          cd /home/deploy
+          
+          # 克隆或更新项目
+          if [ -d "docs-manage" ]; then
+            echo "更新现有项目..."
+            cd docs-manage
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+          else
+            echo "克隆新项目..."
+            git clone -b ${{ github.ref_name }} https://github.com/evening0twilight/docs-manage.git
+            cd docs-manage
+          fi
+          
+          # 检查并保留 .env 文件
+          # 注意: .env 文件应该在服务器上手动维护,不从 Git 仓库复制
+          if [ ! -f ".env" ]; then
+            echo "错误: .env 文件不存在!请先在服务器上创建 .env 文件"
+            echo "参考路径: /home/deploy/docs-manage/.env"
+            exit 1
+          fi
+          echo "使用现有的 .env 配置文件"
+          
+          # 确保 Docker 和 Docker Compose 已安装
+          if ! command -v docker &> /dev/null; then
+            echo "安装 Docker..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo usermod -aG docker $USER
+          fi
+          
+          if ! command -v docker-compose &> /dev/null; then
+            echo "安装 Docker Compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          
+          # 停止现有服务
+          echo "停止现有服务..."
+          sudo docker-compose down || true
+          
+          # 清理旧镜像（保留数据库数据）
+          echo "清理旧镜像..."
+          sudo docker system prune -f || true
+          # sudo docker volume rm docs-manage_mysql_data || true  # 注释掉，保留数据库数据
+          
+          # 重新构建并启动服务（所有构建都在容器内完成）
+          echo "构建并启动服务..."
+          sudo docker-compose up --build -d
+          
+          # 等待服务启动
+          echo "等待服务启动..."
+          sleep 30
+          
+          # 检查服务状态
+          echo "检查服务状态..."
+          sudo docker-compose ps
+          
+          # 检查应用日志
+          echo "最近日志:"
+          sudo docker-compose logs --tail=50 app
+          
+          # 检查数据库连接
+          echo "检查数据库状态:"
+          sudo docker-compose logs --tail=20 mysql
+          
+          # 等待额外时间让应用完全启动
+          echo "等待应用完全启动..."
+          sleep 15
+          
+          # 再次检查应用日志
+          echo "应用启动后日志:"
+          sudo docker-compose logs --tail=30 app
+          
+          echo "部署完成！访问: http://165.227.56.186:3000/api"

@@ -4,7 +4,6 @@
 /build
 
 # Logs
-logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -35,12 +34,21 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
+# dotenv environment variable files - 所有包含敏感信息的环境文件
 .env
-.env.development.local
-.env.test.local
-.env.production.local
 .env.local
+.env.*.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.prod
+.env.staging
+
+# 只允许 .env.example 模板文件提交
+!.env.example
 
 # temp directory
 .temp
@@ -54,3 +62,14 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# 上传文件目录
+uploads/
+!uploads/.gitkeep
+
+# 部署相关
+nginx/ssl/
+mysql/data/
+
+# 测试文件
+test-env.js
