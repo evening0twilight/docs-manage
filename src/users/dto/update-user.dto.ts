@@ -62,4 +62,9 @@ export class UpdateUserDto {
   @IsString({ message: '职位必须是字符串' })
   @MaxLength(100, { message: '职位最多100个字符' })
   position?: string;
+
+  @IsOptional()
+  @IsUrl({}, { message: '头像地址格式不正确' })
+  @MaxLength(500, { message: '头像地址最多500个字符' })
+  avatar?: string;
 }

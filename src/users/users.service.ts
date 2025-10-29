@@ -9,6 +9,7 @@ import { LoginDto, AuthResponse } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
+import { UploadService } from '../common/upload/upload.service';
 import {
   RegisterWithCodeDto,
   ResetPasswordDto,
@@ -23,6 +24,7 @@ export class UsersService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailVerificationService: EmailVerificationService,
+    private uploadService: UploadService,
   ) {}
 
   // 用户登录
@@ -125,9 +127,36 @@ export class UsersService {
       }
     }
 
+    // 🔥 如果更新头像，删除旧头像文件
+    if (updateDto.avatar && updateDto.avatar !== user.avatar) {
+      await this.deleteOldAvatar(user.avatar);
+    }
+
     // 更新用户信息
     Object.assign(user, updateDto);
     return await this.userRepository.save(user);
+  }
+
+  /**
+   * 删除旧头像文件
+   * @param avatarUrl 旧头像URL
+   */
+  private async deleteOldAvatar(
+    avatarUrl: string | null | undefined,
+  ): Promise<void> {
+    // 只删除存储在COS上的头像，不删除默认头像或外部链接
+    if (
+      avatarUrl &&
+      (avatarUrl.includes('myqcloud.com') || avatarUrl.includes('cos.'))
+    ) {
+      try {
+        await this.uploadService.deleteFile(avatarUrl);
+        console.log(`[UsersService] 已删除旧头像: ${avatarUrl}`);
+      } catch (error) {
+        // 删除失败不影响主流程，只记录日志
+        console.error(`[UsersService] 删除旧头像失败: ${avatarUrl}`, error);
+      }
+    }
   }
 
   // 修改密码
