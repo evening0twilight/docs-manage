@@ -321,28 +321,43 @@ export class UsersController {
   @ApiOperation({
     summary: '修改绑定邮箱',
     description:
-      '修改当前用户的绑定邮箱。需要先向新邮箱发送验证码（type=change_email），然后提供新邮箱和验证码完成修改。',
+      '修改当前用户的绑定邮箱。需要提供当前密码验证身份，然后向新邮箱发送验证码（type=change_email），验证通过后完成修改。修改成功后会向旧邮箱发送通知，且24小时内不能再次修改。',
   })
   @ApiBody({
     type: ChangeEmailDto,
-    description: '修改邮箱信息',
+    description: '修改邮箱信息（包含当前密码、新邮箱、验证码）',
   })
   @ApiResponse({
     status: 200,
     description: '邮箱修改成功',
     type: UserProfileResponseDto,
   })
-  @ApiResponse({ status: 400, description: '验证码无效或已过期' })
-  @ApiResponse({ status: 401, description: '未授权访问' })
-  @ApiResponse({ status: 409, description: '该邮箱已被其他用户使用' })
+  @ApiResponse({
+    status: 400,
+    description: '验证码无效或已过期 / 新邮箱与当前邮箱相同',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '未授权访问 / 当前密码错误',
+  })
+  @ApiResponse({
+    status: 409,
+    description: '该邮箱已被其他用户使用',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '邮箱修改过于频繁，请在冷却期后再试',
+  })
   async changeEmail(
     @Request() req: any,
     @Body() changeEmailDto: ChangeEmailDto,
+    @Ip() ip: string,
   ) {
     const userId = Number(req.user.sub);
     const updatedUser = await this.usersService.changeEmail(
       userId,
       changeEmailDto,
+      ip,
     );
     const userData = {
       id: updatedUser.id,

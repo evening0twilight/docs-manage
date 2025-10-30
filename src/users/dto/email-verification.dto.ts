@@ -110,6 +110,14 @@ export class ResetPasswordDto {
 
 export class ChangeEmailDto {
   @ApiProperty({
+    description: '当前密码（用于验证身份）',
+    example: 'CurrentPassword123!',
+  })
+  @IsString()
+  @IsNotEmpty({ message: '当前密码不能为空' })
+  currentPassword: string;
+
+  @ApiProperty({
     description: '新邮箱地址',
     example: 'newemail@example.com',
   })
@@ -117,7 +125,7 @@ export class ChangeEmailDto {
   newEmail: string;
 
   @ApiProperty({
-    description: '6位数字验证码',
+    description: '6位数字验证码（发送到新邮箱）',
     example: '123456',
   })
   @IsString()

@@ -41,4 +41,12 @@ export class EmailVerificationCodeEntity {
     default: null,
   })
   usedAt: Date | null;
+
+  @Column({
+    type: 'int',
+    default: 0,
+    name: 'verify_attempts',
+    comment: '验证尝试次数',
+  })
+  verifyAttempts: number;
 }

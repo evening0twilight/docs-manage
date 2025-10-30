@@ -9,6 +9,7 @@ import { LoginDto, AuthResponse } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/password.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
+import { MailService } from '../common/mail/mail.service';
 import { UploadService } from '../common/upload/upload.service';
 import {
   RegisterWithCodeDto,
@@ -24,6 +25,7 @@ export class UsersService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailVerificationService: EmailVerificationService,
+    private mailService: MailService,
     private uploadService: UploadService,
   ) {}
 
@@ -235,6 +237,14 @@ export class UsersService {
         id: user.id,
         username: user.username,
         email: user.email,
+        avatar: user.avatar,
+        displayName: user.displayName,
+        phone: user.phone,
+        bio: user.bio,
+        location: user.location,
+        website: user.website,
+        organization: user.organization,
+        position: user.position,
       },
     };
   }
@@ -319,43 +329,118 @@ export class UsersService {
   }
 
   /**
-   * 修改绑定邮箱
+   * 修改绑定邮箱（增强版：密码验证 + 冷却期 + 通知旧邮箱）
    * @param userId 用户ID
-   * @param dto 修改邮箱信息
+   * @param dto 修改邮箱DTO
    * @returns 更新后的用户信息
    */
-  async changeEmail(userId: number, dto: ChangeEmailDto): Promise<UserEntity> {
-    const { newEmail, code } = dto;
+  async changeEmail(
+    userId: number,
+    dto: ChangeEmailDto,
+    ipAddress?: string,
+  ): Promise<UserEntity> {
+    const { currentPassword, newEmail, code } = dto;
 
-    // 验证验证码
-    await this.emailVerificationService.verifyCode(
-      newEmail,
-      code,
-      'change_email',
-    );
+    console.log(`[ChangeEmail] 用户 ${userId} 请求修改邮箱到: ${newEmail}`);
 
-    // 检查新邮箱是否已被占用
-    const existingUser = await this.userRepository.findOne({
-      where: { email: newEmail },
-    });
+    // 1. 获取当前用户信息
+    const user = await this.findById(userId);
+    const oldEmail = user.email;
 
-    if (existingUser) {
-      throw new HttpException('该邮箱已被其他用户使用', HttpStatus.CONFLICT);
+    // 2. 检查邮箱修改冷却期（24小时）
+    if (user.lastEmailChangedAt) {
+      const cooldownHours = 24;
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+      const timeSinceLastChange =
+        Date.now() - user.lastEmailChangedAt.getTime();
+
+      if (timeSinceLastChange < cooldownMs) {
+        const remainingHours = Math.ceil(
+          (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
+        );
+        console.warn(
+          `[ChangeEmail] 用户 ${userId} 在冷却期内尝试修改邮箱，剩余 ${remainingHours} 小时`,
+        );
+        throw new HttpException(
+          `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
     }
 
-    // 获取当前用户信息
-    const user = await this.findById(userId);
+    // 3. 验证当前密码（证明是本人操作）
+    console.log(`[ChangeEmail] 验证用户 ${userId} 的密码`);
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      String(user.password),
+    );
+    if (!isPasswordValid) {
+      console.warn(`[ChangeEmail] 用户 ${userId} 密码验证失败，拒绝修改邮箱`);
+      throw new HttpException('当前密码错误', HttpStatus.UNAUTHORIZED);
+    }
 
-    // 检查新邮箱是否与当前邮箱相同
-    if (user.email === newEmail) {
+    // 4. 检查新邮箱是否与当前邮箱相同
+    if (oldEmail === newEmail) {
+      console.warn(
+        `[ChangeEmail] 用户 ${userId} 尝试设置相同的邮箱: ${newEmail}`,
+      );
       throw new HttpException(
         '新邮箱不能与当前邮箱相同',
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    // 更新邮箱
-    await this.userRepository.update(userId, { email: newEmail });
+    // 5. 检查新邮箱是否已被其他用户占用
+    console.log(`[ChangeEmail] 检查邮箱 ${newEmail} 是否已被占用`);
+    const existingUser = await this.userRepository.findOne({
+      where: { email: newEmail },
+    });
+
+    if (existingUser && existingUser.id !== userId) {
+      console.warn(
+        `[ChangeEmail] 邮箱 ${newEmail} 已被用户 ${existingUser.id} 使用`,
+      );
+      throw new HttpException('该邮箱已被其他用户使用', HttpStatus.CONFLICT);
+    }
+
+    // 6. 验证新邮箱的验证码
+    console.log(`[ChangeEmail] 验证邮箱 ${newEmail} 的验证码`);
+    try {
+      await this.emailVerificationService.verifyCode(
+        newEmail,
+        code,
+        'change_email',
+      );
+    } catch (error) {
+      console.warn(`[ChangeEmail] 用户 ${userId} 验证码验证失败: ${newEmail}`);
+      throw error;
+    }
+
+    // 7. 更新邮箱和修改时间
+    console.log(
+      `[ChangeEmail] 更新用户 ${userId} 的邮箱: ${oldEmail} -> ${newEmail}`,
+    );
+    await this.userRepository.update(userId, {
+      email: newEmail,
+      lastEmailChangedAt: new Date(),
+    });
+
+    // 8. 向旧邮箱发送通知（异步，不阻塞响应）
+    this.mailService
+      .sendEmailChangeNotification(oldEmail, newEmail, user.username, ipAddress)
+      .then(() => {
+        console.log(`[ChangeEmail] ✅ 已向旧邮箱 ${oldEmail} 发送变更通知`);
+      })
+      .catch((error) => {
+        console.error(
+          `[ChangeEmail] ⚠️ 向旧邮箱 ${oldEmail} 发送通知失败:`,
+          error.message,
+        );
+      });
+
+    console.log(
+      `[ChangeEmail] ✅ 用户 ${userId} 邮箱修改成功: ${oldEmail} -> ${newEmail}`,
+    );
 
     return this.findById(userId);
   }

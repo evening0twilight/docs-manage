@@ -66,7 +66,7 @@ export class EmailVerificationService {
   }
 
   /**
-   * 验证验证码
+   * 验证验证码（带尝试次数限制）
    * @param email 邮箱
    * @param code 验证码
    * @param type 验证码类型
@@ -77,11 +77,10 @@ export class EmailVerificationService {
     code: string,
     type: 'register' | 'reset_password' | 'change_email',
   ): Promise<boolean> {
-    // 查找验证码
+    // 查找最新的未使用验证码
     const verificationCode = await this.verificationCodeRepo.findOne({
       where: {
         email,
-        code,
         type,
         isUsed: false,
       },
@@ -102,7 +101,35 @@ export class EmailVerificationService {
       );
     }
 
-    // 标记为已使用
+    // 检查尝试次数（最多5次）
+    if (verificationCode.verifyAttempts >= 5) {
+      throw new HttpException(
+        '验证码尝试次数已达上限，请重新获取验证码',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 验证码不匹配
+    if (verificationCode.code !== code) {
+      // 增加尝试次数
+      verificationCode.verifyAttempts += 1;
+      await this.verificationCodeRepo.save(verificationCode);
+
+      const remainingAttempts = 5 - verificationCode.verifyAttempts;
+      if (remainingAttempts > 0) {
+        throw new HttpException(
+          `验证码错误，还剩 ${remainingAttempts} 次尝试机会`,
+          HttpStatus.BAD_REQUEST,
+        );
+      } else {
+        throw new HttpException(
+          '验证码尝试次数已达上限，请重新获取验证码',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    // 验证码正确，标记为已使用
     verificationCode.isUsed = true;
     verificationCode.usedAt = new Date();
     await this.verificationCodeRepo.save(verificationCode);

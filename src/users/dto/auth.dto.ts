@@ -103,6 +103,36 @@ export class UserResponseDto {
 
   @ApiProperty({ description: '邮箱', example: 'testuser@example.com' })
   email: string;
+
+  @ApiPropertyOptional({
+    description: '头像URL',
+    example: 'https://example.com/avatar.jpg',
+  })
+  avatar?: string;
+
+  @ApiPropertyOptional({ description: '昵称/显示名称', example: '张三' })
+  displayName?: string;
+
+  @ApiPropertyOptional({ description: '手机号', example: '13800138000' })
+  phone?: string;
+
+  @ApiPropertyOptional({ description: '个人简介', example: '热爱编程的开发者' })
+  bio?: string;
+
+  @ApiPropertyOptional({ description: '所在地', example: '北京' })
+  location?: string;
+
+  @ApiPropertyOptional({
+    description: '个人网站',
+    example: 'https://example.com',
+  })
+  website?: string;
+
+  @ApiPropertyOptional({ description: '公司/组织', example: '某某科技公司' })
+  organization?: string;
+
+  @ApiPropertyOptional({ description: '职位', example: '全栈工程师' })
+  position?: string;
 }
 
 export class AuthResponse {
