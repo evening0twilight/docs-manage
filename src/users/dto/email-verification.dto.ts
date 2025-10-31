@@ -108,7 +108,15 @@ export class ResetPasswordDto {
   newPassword: string;
 }
 
-export class ChangeEmailDto {
+// 步骤1: 验证当前邮箱的验证码
+export class VerifyOldEmailDto {
+  @ApiProperty({
+    description: '当前邮箱地址',
+    example: 'current@example.com',
+  })
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  email: string;
+
   @ApiProperty({
     description: '当前邮箱验证码（发送到当前邮箱，用于验证身份）',
     example: '123456',
@@ -116,8 +124,11 @@ export class ChangeEmailDto {
   @IsString()
   @IsNotEmpty({ message: '当前邮箱验证码不能为空' })
   @Length(6, 6, { message: '验证码必须是6位数字' })
-  oldEmailCode: string;
+  code: string;
+}
 
+// 步骤2: 提交新邮箱和验证码
+export class ChangeEmailDto {
   @ApiProperty({
     description: '新邮箱地址',
     example: 'newemail@example.com',

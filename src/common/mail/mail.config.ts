@@ -68,11 +68,11 @@ export class MailConfig {
     // 限流配置
     this.rateLimitIpDaily = configService.get<number>(
       'MAIL_RATE_LIMIT_IP_DAILY',
-      10,
+      100,
     );
     this.rateLimitEmailHourly = configService.get<number>(
       'MAIL_RATE_LIMIT_EMAIL_HOURLY',
-      5,
+      10,
     );
     this.rateLimitSameOperation = configService.get<number>(
       'MAIL_RATE_LIMIT_SAME_OPERATION',

@@ -328,26 +328,38 @@ export class UsersService {
     return this.findById(userId);
   }
 
-  /**
-   * 修改绑定邮箱（方案B：旧邮箱验证 + 新邮箱验证 + 冷却期 + 通知旧邮箱）
-   * @param userId 用户ID
-   * @param dto 修改邮箱DTO
-   * @returns 更新后的用户信息
-   */
-  async changeEmail(
-    userId: number,
-    dto: ChangeEmailDto,
-    ipAddress?: string,
-  ): Promise<UserEntity> {
-    const { oldEmailCode, newEmail, newEmailCode } = dto;
+  // 临时存储：记录哪些用户已通过旧邮箱验证（key: userId, value: 验证时间戳）
+  private oldEmailVerifiedMap = new Map<number, number>();
 
-    console.log(`[ChangeEmail] 用户 ${userId} 请求修改邮箱到: ${newEmail}`);
+  /**
+   * 【步骤1】验证当前邮箱的验证码
+   * @param userId 用户ID
+   * @param email 邮箱地址
+   * @param code 验证码
+   */
+  async verifyOldEmail(
+    userId: number,
+    email: string,
+    code: string,
+  ): Promise<void> {
+    console.log(`[VerifyOldEmail] 用户 ${userId} 请求验证邮箱: ${email}`);
 
     // 1. 获取当前用户信息
     const user = await this.findById(userId);
-    const oldEmail = user.email;
+    const currentEmail = user.email;
 
-    // 2. 检查邮箱修改冷却期（24小时）
+    // 2. 验证提交的邮箱是否与当前邮箱一致
+    if (email !== currentEmail) {
+      console.warn(
+        `[VerifyOldEmail] 用户 ${userId} 提交的邮箱 ${email} 与当前邮箱 ${currentEmail} 不一致`,
+      );
+      throw new HttpException(
+        '提交的邮箱与当前绑定邮箱不一致',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 3. 检查邮箱修改冷却期（24小时）
     if (user.lastEmailChangedAt) {
       const cooldownHours = 24;
       const cooldownMs = cooldownHours * 60 * 60 * 1000;
@@ -359,7 +371,7 @@ export class UsersService {
           (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
         );
         console.warn(
-          `[ChangeEmail] 用户 ${userId} 在冷却期内尝试修改邮箱，剩余 ${remainingHours} 小时`,
+          `[VerifyOldEmail] 用户 ${userId} 在冷却期内，剩余 ${remainingHours} 小时`,
         );
         throw new HttpException(
           `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
@@ -368,23 +380,74 @@ export class UsersService {
       }
     }
 
-    // 3. 验证当前邮箱的验证码（证明是本人操作，能接收旧邮箱）
-    console.log(`[ChangeEmail] 验证当前邮箱 ${oldEmail} 的验证码`);
+    // 4. 验证当前邮箱的验证码
+    console.log(`[VerifyOldEmail] 验证当前邮箱 ${currentEmail} 的验证码`);
     try {
       await this.emailVerificationService.verifyCode(
-        oldEmail,
-        oldEmailCode,
+        currentEmail,
+        code,
         'change_email',
       );
     } catch (error) {
       console.warn(
-        `[ChangeEmail] 用户 ${userId} 当前邮箱验证码验证失败: ${oldEmail}`,
+        `[VerifyOldEmail] 用户 ${userId} 当前邮箱验证码验证失败: ${currentEmail}`,
       );
       throw new HttpException(
         '当前邮箱验证码错误或已过期',
         HttpStatus.BAD_REQUEST,
       );
     }
+
+    // 5. 记录验证通过状态（有效期10分钟）
+    this.oldEmailVerifiedMap.set(userId, Date.now());
+    console.log(`[VerifyOldEmail] 用户 ${userId} 当前邮箱验证通过`);
+
+    // 6. 定时清理（10分钟后）
+    setTimeout(
+      () => {
+        this.oldEmailVerifiedMap.delete(userId);
+        console.log(`[VerifyOldEmail] 用户 ${userId} 的验证状态已过期`);
+      },
+      10 * 60 * 1000,
+    );
+  }
+
+  /**
+   * 【步骤2】修改绑定邮箱（需先通过步骤1验证旧邮箱）
+   * @param userId 用户ID
+   * @param dto 修改邮箱DTO（只包含新邮箱和新邮箱验证码）
+   * @returns 更新后的用户信息
+   */
+  async changeEmail(
+    userId: number,
+    dto: ChangeEmailDto,
+    ipAddress?: string,
+  ): Promise<UserEntity> {
+    const { newEmail, newEmailCode } = dto;
+
+    console.log(`[ChangeEmail] 用户 ${userId} 请求修改邮箱到: ${newEmail}`);
+
+    // 1. 检查是否已通过旧邮箱验证
+    const verifiedAt = this.oldEmailVerifiedMap.get(userId);
+    if (!verifiedAt) {
+      console.warn(`[ChangeEmail] 用户 ${userId} 未先验证当前邮箱`);
+      throw new HttpException('请先验证当前邮箱', HttpStatus.BAD_REQUEST);
+    }
+
+    // 2. 检查验证状态是否过期（10分钟）
+    const verificationAge = Date.now() - verifiedAt;
+    if (verificationAge > 10 * 60 * 1000) {
+      this.oldEmailVerifiedMap.delete(userId);
+      console.warn(`[ChangeEmail] 用户 ${userId} 的旧邮箱验证已过期`);
+      throw new HttpException(
+        '当前邮箱验证已过期，请重新验证',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 3. 获取当前用户信息
+    const user = await this.findById(userId);
+    const oldEmail = user.email;
 
     // 4. 检查新邮箱是否与当前邮箱相同
     if (oldEmail === newEmail) {
@@ -428,7 +491,10 @@ export class UsersService {
       );
     }
 
-    // 7. 更新邮箱和修改时间
+    // 7. 清除验证状态（防止重复使用）
+    this.oldEmailVerifiedMap.delete(userId);
+
+    // 8. 更新邮箱和修改时间
     console.log(
       `[ChangeEmail] 更新用户 ${userId} 的邮箱: ${oldEmail} -> ${newEmail}`,
     );
@@ -437,7 +503,7 @@ export class UsersService {
       lastEmailChangedAt: new Date(),
     });
 
-    // 8. 向旧邮箱发送通知（异步，不阻塞响应）
+    // 9. 向旧邮箱发送通知（异步，不阻塞响应）
     this.mailService
       .sendEmailChangeNotification(oldEmail, newEmail, user.username, ipAddress)
       .then(() => {
