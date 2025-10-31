@@ -29,6 +29,7 @@ import {
   SendVerificationCodeDto,
   RegisterWithCodeDto,
   ResetPasswordDto,
+  VerifyOldEmailDto,
   ChangeEmailDto,
 } from './dto/email-verification.dto';
 import { EmailVerificationService } from '../common/mail/email-verification.service';
@@ -314,18 +315,70 @@ export class UsersController {
     );
   }
 
+  // ==================== 邮箱修改（分步验证）====================
+
+  @Put('email/verify-old')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '【步骤1】验证当前邮箱',
+    description:
+      '修改邮箱的第一步：验证当前邮箱的验证码。验证通过后前端可以进入下一步（输入新邮箱）。需要先调用 POST /users/send-verification-code 发送验证码到当前邮箱（type=change_email）。',
+  })
+  @ApiBody({
+    type: VerifyOldEmailDto,
+    description: '当前邮箱的验证码',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '当前邮箱验证通过',
+    schema: {
+      example: {
+        code: 200,
+        message: '当前邮箱验证通过，请继续输入新邮箱',
+        data: {
+          verified: true,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '验证码错误或已过期 / 尝试次数过多',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '邮箱修改过于频繁，请在冷却期后再试',
+  })
+  async verifyOldEmail(
+    @Request() req: any,
+    @Body() verifyOldEmailDto: VerifyOldEmailDto,
+  ) {
+    const userId = Number(req.user.sub);
+    await this.usersService.verifyOldEmail(
+      userId,
+      verifyOldEmailDto.email,
+      verifyOldEmailDto.code,
+    );
+    return new SuccessResponseDto(
+      { verified: true },
+      '当前邮箱验证通过，请继续输入新邮箱',
+    );
+  }
+
   @Put('email')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: '修改绑定邮箱',
+    summary: '【步骤2】提交新邮箱并完成修改',
     description:
-      '修改当前用户的绑定邮箱。需要验证当前邮箱（发送验证码到旧邮箱），然后验证新邮箱（发送验证码到新邮箱，type=change_email），双重验证通过后完成修改。修改成功后会向旧邮箱发送通知，且24小时内不能再次修改。',
+      '修改邮箱的第二步：在通过步骤1的验证后，提交新邮箱和新邮箱的验证码。需要先调用 POST /users/send-verification-code 发送验证码到新邮箱（type=change_email）。验证通过后完成邮箱修改，并向旧邮箱发送通知。',
   })
   @ApiBody({
     type: ChangeEmailDto,
-    description: '修改邮箱信息（包含旧邮箱验证码、新邮箱、新邮箱验证码）',
+    description: '新邮箱和新邮箱验证码',
   })
   @ApiResponse({
     status: 200,
@@ -334,19 +387,11 @@ export class UsersController {
   })
   @ApiResponse({
     status: 400,
-    description: '验证码无效或已过期 / 新邮箱与当前邮箱相同',
-  })
-  @ApiResponse({
-    status: 401,
-    description: '未授权访问',
+    description: '验证码错误或已过期 / 新邮箱与当前邮箱相同 / 未先验证当前邮箱',
   })
   @ApiResponse({
     status: 409,
     description: '该邮箱已被其他用户使用',
-  })
-  @ApiResponse({
-    status: 429,
-    description: '邮箱修改过于频繁，请在冷却期后再试',
   })
   async changeEmail(
     @Request() req: any,

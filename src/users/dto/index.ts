@@ -13,4 +13,6 @@ export {
   SendVerificationCodeDto,
   VerifyCodeDto,
   RegisterWithCodeDto,
+  VerifyOldEmailDto,
+  ChangeEmailDto,
 } from './email-verification.dto';

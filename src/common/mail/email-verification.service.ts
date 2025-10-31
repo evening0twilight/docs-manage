@@ -77,6 +77,10 @@ export class EmailVerificationService {
     code: string,
     type: 'register' | 'reset_password' | 'change_email',
   ): Promise<boolean> {
+    console.log(
+      `[VerifyCode] 开始验证: email=${email}, code=${code}, type=${type}`,
+    );
+
     // 查找最新的未使用验证码
     const verificationCode = await this.verificationCodeRepo.findOne({
       where: {
@@ -90,11 +94,22 @@ export class EmailVerificationService {
     });
 
     if (!verificationCode) {
+      console.warn(
+        `[VerifyCode] 验证码不存在或已使用: email=${email}, type=${type}`,
+      );
       throw new HttpException('验证码不存在或已使用', HttpStatus.BAD_REQUEST);
     }
 
+    console.log(
+      `[VerifyCode] 找到验证码: id=${verificationCode.id}, code=${verificationCode.code}, createdAt=${verificationCode.createdAt}, expiresAt=${verificationCode.expiresAt}, isUsed=${verificationCode.isUsed}, verifyAttempts=${verificationCode.verifyAttempts}`,
+    );
+
     // 检查是否过期
-    if (new Date() > verificationCode.expiresAt) {
+    const now = new Date();
+    if (now > verificationCode.expiresAt) {
+      console.warn(
+        `[VerifyCode] 验证码已过期: now=${now.toISOString()}, expiresAt=${verificationCode.expiresAt.toISOString()}`,
+      );
       throw new HttpException(
         '验证码已过期，请重新获取',
         HttpStatus.BAD_REQUEST,
@@ -103,6 +118,9 @@ export class EmailVerificationService {
 
     // 检查尝试次数（最多5次）
     if (verificationCode.verifyAttempts >= 5) {
+      console.warn(
+        `[VerifyCode] 尝试次数已达上限: verifyAttempts=${verificationCode.verifyAttempts}`,
+      );
       throw new HttpException(
         '验证码尝试次数已达上限，请重新获取验证码',
         HttpStatus.BAD_REQUEST,
@@ -111,6 +129,9 @@ export class EmailVerificationService {
 
     // 验证码不匹配
     if (verificationCode.code !== code) {
+      console.warn(
+        `[VerifyCode] 验证码不匹配: expected=${verificationCode.code}, actual=${code}`,
+      );
       // 增加尝试次数
       verificationCode.verifyAttempts += 1;
       await this.verificationCodeRepo.save(verificationCode);
@@ -130,6 +151,7 @@ export class EmailVerificationService {
     }
 
     // 验证码正确，标记为已使用
+    console.log(`[VerifyCode] 验证码验证成功，标记为已使用: email=${email}`);
     verificationCode.isUsed = true;
     verificationCode.usedAt = new Date();
     await this.verificationCodeRepo.save(verificationCode);
