@@ -233,8 +233,21 @@ export class DocumentService {
       throw new HttpException('文档不存在', HttpStatus.NOT_FOUND);
     }
 
+    // 调试日志
+    console.log('[findDocsOne] 文档访问权限检查:', {
+      documentId: id,
+      documentName: doc.name,
+      documentVisibility: doc.visibility,
+      documentCreatorId: doc.creatorId,
+      currentUserId: currentUserId,
+      userIdType: typeof currentUserId,
+      creatorIdType: typeof doc.creatorId,
+      isEqual: doc.creatorId === currentUserId,
+    });
+
     // 权限检查
     if (doc.visibility === 'private' && doc.creatorId !== currentUserId) {
+      console.warn('[findDocsOne] 权限检查失败 - 用户无权访问private文档');
       throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
     }
 
