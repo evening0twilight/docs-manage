@@ -543,7 +543,7 @@ export class DocumentController {
   async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
-      
+
       // 调试日志
       console.log('[DocumentController.findOne] 请求信息:', {
         documentId: id,

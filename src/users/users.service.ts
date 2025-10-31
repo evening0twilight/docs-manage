@@ -329,7 +329,7 @@ export class UsersService {
   }
 
   /**
-   * 修改绑定邮箱（增强版：密码验证 + 冷却期 + 通知旧邮箱）
+   * 修改绑定邮箱（方案B：旧邮箱验证 + 新邮箱验证 + 冷却期 + 通知旧邮箱）
    * @param userId 用户ID
    * @param dto 修改邮箱DTO
    * @returns 更新后的用户信息
@@ -339,7 +339,7 @@ export class UsersService {
     dto: ChangeEmailDto,
     ipAddress?: string,
   ): Promise<UserEntity> {
-    const { currentPassword, newEmail, code } = dto;
+    const { oldEmailCode, newEmail, newEmailCode } = dto;
 
     console.log(`[ChangeEmail] 用户 ${userId} 请求修改邮箱到: ${newEmail}`);
 
@@ -368,15 +368,22 @@ export class UsersService {
       }
     }
 
-    // 3. 验证当前密码（证明是本人操作）
-    console.log(`[ChangeEmail] 验证用户 ${userId} 的密码`);
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      String(user.password),
-    );
-    if (!isPasswordValid) {
-      console.warn(`[ChangeEmail] 用户 ${userId} 密码验证失败，拒绝修改邮箱`);
-      throw new HttpException('当前密码错误', HttpStatus.UNAUTHORIZED);
+    // 3. 验证当前邮箱的验证码（证明是本人操作，能接收旧邮箱）
+    console.log(`[ChangeEmail] 验证当前邮箱 ${oldEmail} 的验证码`);
+    try {
+      await this.emailVerificationService.verifyCode(
+        oldEmail,
+        oldEmailCode,
+        'change_email',
+      );
+    } catch (error) {
+      console.warn(
+        `[ChangeEmail] 用户 ${userId} 当前邮箱验证码验证失败: ${oldEmail}`,
+      );
+      throw new HttpException(
+        '当前邮箱验证码错误或已过期',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // 4. 检查新邮箱是否与当前邮箱相同
@@ -404,16 +411,21 @@ export class UsersService {
     }
 
     // 6. 验证新邮箱的验证码
-    console.log(`[ChangeEmail] 验证邮箱 ${newEmail} 的验证码`);
+    console.log(`[ChangeEmail] 验证新邮箱 ${newEmail} 的验证码`);
     try {
       await this.emailVerificationService.verifyCode(
         newEmail,
-        code,
+        newEmailCode,
         'change_email',
       );
     } catch (error) {
-      console.warn(`[ChangeEmail] 用户 ${userId} 验证码验证失败: ${newEmail}`);
-      throw error;
+      console.warn(
+        `[ChangeEmail] 用户 ${userId} 新邮箱验证码验证失败: ${newEmail}`,
+      );
+      throw new HttpException(
+        '新邮箱验证码错误或已过期',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // 7. 更新邮箱和修改时间
