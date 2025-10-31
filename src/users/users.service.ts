@@ -359,26 +359,26 @@ export class UsersService {
       );
     }
 
-    // 3. 检查邮箱修改冷却期（24小时）
-    if (user.lastEmailChangedAt) {
-      const cooldownHours = 24;
-      const cooldownMs = cooldownHours * 60 * 60 * 1000;
-      const timeSinceLastChange =
-        Date.now() - user.lastEmailChangedAt.getTime();
+    // 3. 检查邮箱修改冷却期（24小时）- 已禁用，测试阶段
+    // if (user.lastEmailChangedAt) {
+    //   const cooldownHours = 24;
+    //   const cooldownMs = cooldownHours * 60 * 60 * 1000;
+    //   const timeSinceLastChange =
+    //     Date.now() - user.lastEmailChangedAt.getTime();
 
-      if (timeSinceLastChange < cooldownMs) {
-        const remainingHours = Math.ceil(
-          (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
-        );
-        console.warn(
-          `[VerifyOldEmail] 用户 ${userId} 在冷却期内，剩余 ${remainingHours} 小时`,
-        );
-        throw new HttpException(
-          `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-    }
+    //   if (timeSinceLastChange < cooldownMs) {
+    //     const remainingHours = Math.ceil(
+    //       (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
+    //     );
+    //     console.warn(
+    //       `[VerifyOldEmail] 用户 ${userId} 在冷却期内，剩余 ${remainingHours} 小时`,
+    //     );
+    //     throw new HttpException(
+    //       `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
+    //       HttpStatus.TOO_MANY_REQUESTS,
+    //     );
+    //   }
+    // }
 
     // 4. 验证当前邮箱的验证码
     console.log(`[VerifyOldEmail] 验证当前邮箱 ${currentEmail} 的验证码`);
@@ -388,7 +388,7 @@ export class UsersService {
         code,
         'change_email',
       );
-    } catch (error) {
+    } catch {
       console.warn(
         `[VerifyOldEmail] 用户 ${userId} 当前邮箱验证码验证失败: ${currentEmail}`,
       );
@@ -481,7 +481,7 @@ export class UsersService {
         newEmailCode,
         'change_email',
       );
-    } catch (error) {
+    } catch {
       console.warn(
         `[ChangeEmail] 用户 ${userId} 新邮箱验证码验证失败: ${newEmail}`,
       );

@@ -101,7 +101,7 @@ export class EmailVerificationService {
     }
 
     console.log(
-      `[VerifyCode] 找到验证码: id=${verificationCode.id}, code=${verificationCode.code}, createdAt=${verificationCode.createdAt}, expiresAt=${verificationCode.expiresAt}, isUsed=${verificationCode.isUsed}, verifyAttempts=${verificationCode.verifyAttempts}`,
+      `[VerifyCode] 找到验证码: id=${verificationCode.id}, code=${verificationCode.code}, createdAt=${verificationCode.createdAt.toISOString()}, expiresAt=${verificationCode.expiresAt.toISOString()}, isUsed=${verificationCode.isUsed}, verifyAttempts=${verificationCode.verifyAttempts}`,
     );
 
     // 检查是否过期
