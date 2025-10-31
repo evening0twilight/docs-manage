@@ -520,9 +520,11 @@ export class DocumentController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '获取文档详情',
-    description: '根据文档ID获取文档的详细信息。',
+    description: '根据文档ID获取文档的详细信息。需要JWT认证。',
   })
   @ApiParam({
     name: 'id',
@@ -534,11 +536,36 @@ export class DocumentController {
     status: 200,
     description: '获取文档详情成功',
   })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 403, description: '无权访问此文档' })
   @ApiResponse({ status: 404, description: '文档不存在' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
     try {
-      const document = await this.documentService.findDocsOne(id);
+      const currentUserId = req.user?.id || req.user?.sub;
+      
+      // 调试日志
+      console.log('[DocumentController.findOne] 请求信息:', {
+        documentId: id,
+        reqUser: req.user,
+        extractedUserId: currentUserId,
+        userIdType: typeof currentUserId,
+      });
+
+      if (!currentUserId) {
+        return new ResponseDto(
+          false,
+          '用户身份验证失败',
+          undefined,
+          '无法获取当前用户信息',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const document = await this.documentService.findDocsOne(
+        id,
+        Number(currentUserId),
+      );
       if (!document) {
         return new ResponseDto(
           false,
@@ -556,12 +583,16 @@ export class DocumentController {
         HttpStatus.OK,
       );
     } catch (error: any) {
+      const statusCode =
+        error?.status === HttpStatus.FORBIDDEN
+          ? HttpStatus.FORBIDDEN
+          : HttpStatus.BAD_REQUEST;
       return new ResponseDto(
         false,
         '文档详情获取失败',
         undefined,
         String(error?.message || '未知错误'),
-        HttpStatus.BAD_REQUEST,
+        statusCode,
       );
     }
   }
