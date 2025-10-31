@@ -72,7 +72,7 @@ export class MailConfig {
     );
     this.rateLimitEmailHourly = configService.get<number>(
       'MAIL_RATE_LIMIT_EMAIL_HOURLY',
-      10,
+      5,
     );
     this.rateLimitSameOperation = configService.get<number>(
       'MAIL_RATE_LIMIT_SAME_OPERATION',
