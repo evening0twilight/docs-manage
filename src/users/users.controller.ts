@@ -321,11 +321,11 @@ export class UsersController {
   @ApiOperation({
     summary: '修改绑定邮箱',
     description:
-      '修改当前用户的绑定邮箱。需要提供当前密码验证身份，然后向新邮箱发送验证码（type=change_email），验证通过后完成修改。修改成功后会向旧邮箱发送通知，且24小时内不能再次修改。',
+      '修改当前用户的绑定邮箱。需要验证当前邮箱（发送验证码到旧邮箱），然后验证新邮箱（发送验证码到新邮箱，type=change_email），双重验证通过后完成修改。修改成功后会向旧邮箱发送通知，且24小时内不能再次修改。',
   })
   @ApiBody({
     type: ChangeEmailDto,
-    description: '修改邮箱信息（包含当前密码、新邮箱、验证码）',
+    description: '修改邮箱信息（包含旧邮箱验证码、新邮箱、新邮箱验证码）',
   })
   @ApiResponse({
     status: 200,
@@ -338,7 +338,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 401,
-    description: '未授权访问 / 当前密码错误',
+    description: '未授权访问',
   })
   @ApiResponse({
     status: 409,
