@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { UserEntity } from '../users/user.entity';
+import { DocumentPermission } from './document-permission.entity';
 
 // 项目类型枚举
 export enum ItemType {
@@ -101,6 +102,10 @@ export class FileSystemItemEntity {
   // 子项关联
   @OneToMany(() => FileSystemItemEntity, (item) => item.parent)
   children: FileSystemItemEntity[];
+
+  // 权限关联
+  @OneToMany(() => DocumentPermission, (permission) => permission.document)
+  permissions: DocumentPermission[];
 
   @CreateDateColumn({ name: 'created_time' })
   created_time: Date;

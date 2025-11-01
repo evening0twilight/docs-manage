@@ -239,10 +239,10 @@ export class UsersController {
     return new SuccessResponseDto(result, '验证码已发送');
   }
 
-  @Post('register-with-code')
+  @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: '使用验证码注册',
+    summary: '用户注册',
     description: '通过邮箱验证码完成用户注册',
   })
   @ApiBody({ type: RegisterWithCodeDto })
@@ -253,7 +253,7 @@ export class UsersController {
   })
   @ApiResponse({ status: 400, description: '验证码无效或已过期' })
   @ApiResponse({ status: 409, description: '用户名或邮箱已存在' })
-  async registerWithCode(@Body() dto: RegisterWithCodeDto) {
+  async register(@Body() dto: RegisterWithCodeDto) {
     const authData = await this.usersService.registerWithCode(dto);
     return new CreatedResponseDto(authData, '用户注册成功');
   }
