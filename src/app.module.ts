@@ -8,6 +8,7 @@ import { DocumentModule } from './document/document.module';
 import { LogsModule } from './logs/logs.module';
 import { MailModule } from './common/mail/mail.module';
 import { UploadModule } from './common/upload/upload.module';
+import { EventsModule } from './events/events.module';
 import { envConfig } from './config/env';
 // import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
@@ -38,6 +39,7 @@ import { APP_PIPE } from '@nestjs/core';
     }),
     MailModule,
     UploadModule,
+    EventsModule,
     UsersModule,
     DocumentModule,
     LogsModule,
