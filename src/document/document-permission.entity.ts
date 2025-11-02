@@ -21,11 +21,11 @@ export class DocumentPermission {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'document_id' })
-  documentId: string;
+  @Column({ name: 'document_id', type: 'int' })
+  documentId: number;
 
-  @Column({ name: 'user_id' })
-  userId: string;
+  @Column({ name: 'user_id', type: 'int' })
+  userId: number;
 
   @Column({
     type: 'enum',

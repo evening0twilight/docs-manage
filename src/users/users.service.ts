@@ -257,8 +257,13 @@ export class UsersService {
   async registerWithCode(dto: RegisterWithCodeDto): Promise<AuthResponse> {
     const { username, password, email, code } = dto;
 
-    // 验证验证码
-    await this.emailVerificationService.verifyCode(email, code, 'register');
+    // 验证验证码(暂不标记为已使用，等注册成功后再标记)
+    await this.emailVerificationService.verifyCode(
+      email,
+      code,
+      'register',
+      false,
+    );
 
     // 检查用户是否已存在
     const existingUser = await this.userRepository.findOne({
@@ -280,6 +285,9 @@ export class UsersService {
     });
 
     const savedUser = await this.userRepository.save(user);
+
+    // 注册成功，标记验证码为已使用
+    await this.emailVerificationService.markCodeAsUsed(email, 'register');
 
     // 生成tokens
     return this.generateTokens(savedUser);

@@ -66,16 +66,18 @@ export class EmailVerificationService {
   }
 
   /**
-   * 验证验证码（带尝试次数限制）
+   * 验证验证码(带尝试次数限制)
    * @param email 邮箱
    * @param code 验证码
    * @param type 验证码类型
+   * @param markAsUsed 是否标记为已使用(默认true,注册场景传false)
    * @returns 验证结果
    */
   async verifyCode(
     email: string,
     code: string,
     type: 'register' | 'reset_password' | 'change_email',
+    markAsUsed: boolean = true,
   ): Promise<boolean> {
     console.log(
       `[VerifyCode] 开始验证: email=${email}, code=${code}, type=${type}`,
@@ -150,13 +152,49 @@ export class EmailVerificationService {
       }
     }
 
-    // 验证码正确，标记为已使用
-    console.log(`[VerifyCode] 验证码验证成功，标记为已使用: email=${email}`);
-    verificationCode.isUsed = true;
-    verificationCode.usedAt = new Date();
-    await this.verificationCodeRepo.save(verificationCode);
+    // 验证码正确，根据参数决定是否标记为已使用
+    if (markAsUsed) {
+      console.log(`[VerifyCode] 验证码验证成功，标记为已使用: email=${email}`);
+      verificationCode.isUsed = true;
+      verificationCode.usedAt = new Date();
+      await this.verificationCodeRepo.save(verificationCode);
+    } else {
+      console.log(
+        `[VerifyCode] 验证码验证成功，暂不标记为已使用: email=${email}`,
+      );
+    }
 
     return true;
+  }
+
+  /**
+   * 标记验证码为已使用
+   * @param email 邮箱
+   * @param type 验证码类型
+   */
+  async markCodeAsUsed(
+    email: string,
+    type: 'register' | 'reset_password' | 'change_email',
+  ): Promise<void> {
+    const verificationCode = await this.verificationCodeRepo.findOne({
+      where: {
+        email,
+        type,
+        isUsed: false,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+
+    if (verificationCode) {
+      verificationCode.isUsed = true;
+      verificationCode.usedAt = new Date();
+      await this.verificationCodeRepo.save(verificationCode);
+      console.log(
+        `[MarkCodeAsUsed] 验证码已标记为已使用: email=${email}, type=${type}`,
+      );
+    }
   }
 
   /**

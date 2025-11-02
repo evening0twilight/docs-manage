@@ -53,8 +53,8 @@ export class DocumentPermissionService {
     // 3. 查询权限记录
     const permission = await this.permissionRepository.findOne({
       where: {
-        documentId: documentId.toString(),
-        userId: userId.toString(),
+        documentId: documentId,
+        userId: userId,
       },
     });
 
@@ -118,8 +118,8 @@ export class DocumentPermissionService {
     // 3. 检查是否已经有权限
     const existingPermission = await this.permissionRepository.findOne({
       where: {
-        documentId: documentId.toString(),
-        userId: targetUser.id.toString(),
+        documentId: documentId,
+        userId: targetUser.id,
       },
     });
 
@@ -146,8 +146,8 @@ export class DocumentPermissionService {
     } else {
       // 创建新权限
       const permission = this.permissionRepository.create({
-        documentId: documentId.toString(),
-        userId: targetUser.id.toString(),
+        documentId: documentId,
+        userId: targetUser.id,
         role: shareDto.role,
         ...permissionData,
       });
@@ -174,7 +174,7 @@ export class DocumentPermissionService {
     }
 
     return await this.permissionRepository.find({
-      where: { documentId: documentId.toString() },
+      where: { documentId: documentId },
       relations: ['user'],
     });
   }
@@ -198,7 +198,7 @@ export class DocumentPermissionService {
     // 检查是否有分享权限
     const hasSharePermission = await this.checkPermission(
       currentUserId,
-      parseInt(permission.documentId),
+      permission.documentId,
       'share',
     );
 
@@ -242,7 +242,7 @@ export class DocumentPermissionService {
     // 检查是否有分享权限
     const hasSharePermission = await this.checkPermission(
       currentUserId,
-      parseInt(permission.documentId),
+      permission.documentId,
       'share',
     );
 
@@ -295,15 +295,15 @@ export class DocumentPermissionService {
   }
 
   /**
-   * 创建所有者权限（在创建文档时自动调用）
+   * 创建所有者权限(在创建文档时自动调用)
    */
   async createOwnerPermission(
     documentId: number,
     userId: number,
   ): Promise<DocumentPermission> {
     const permission = this.permissionRepository.create({
-      documentId: documentId.toString(),
-      userId: userId.toString(),
+      documentId: documentId,
+      userId: userId,
       role: PermissionRole.OWNER,
       canRead: true,
       canWrite: true,
@@ -319,10 +319,10 @@ export class DocumentPermissionService {
    */
   async getUserDocuments(userId: number): Promise<FileSystemItemEntity[]> {
     const permissions = await this.permissionRepository.find({
-      where: { userId: userId.toString() },
+      where: { userId: userId },
     });
 
-    const documentIds = permissions.map((p) => parseInt(p.documentId));
+    const documentIds = permissions.map((p) => p.documentId);
 
     if (documentIds.length === 0) {
       return [];
