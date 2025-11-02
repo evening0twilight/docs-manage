@@ -36,17 +36,27 @@ export class DocumentPermissionService {
     documentId: number,
     action: 'read' | 'write' | 'delete' | 'share',
   ): Promise<boolean> {
+    console.log(
+      `[CheckPermission] 开始检查权限: userId=${userId}, documentId=${documentId}, action=${action}`,
+    );
+
     // 1. 检查文档是否存在
     const document = await this.documentRepository.findOne({
       where: { id: documentId },
     });
+
+    console.log(`[CheckPermission] 文档查询结果: document=${document?.id}`);
 
     if (!document) {
       throw new NotFoundException('文档不存在');
     }
 
     // 2. 如果是创建者,拥有所有权限
+    console.log(
+      `[CheckPermission] 创建者检查: creatorId=${document.creatorId}, userId=${userId}`,
+    );
     if (document.creatorId === userId) {
+      console.log(`[CheckPermission] 用户是文档创建者,拥有所有权限`);
       return true;
     }
 
@@ -58,23 +68,36 @@ export class DocumentPermissionService {
       },
     });
 
+    console.log(
+      `[CheckPermission] 权限记录查询结果: permission=${permission?.id}`,
+    );
+
     if (!permission) {
+      console.log(`[CheckPermission] 未找到权限记录,返回false`);
       return false;
     }
 
     // 4. 根据操作类型检查权限
+    let result = false;
     switch (action) {
       case 'read':
-        return permission.canRead;
+        result = permission.canRead;
+        break;
       case 'write':
-        return permission.canWrite;
+        result = permission.canWrite;
+        break;
       case 'delete':
-        return permission.canDelete;
+        result = permission.canDelete;
+        break;
       case 'share':
-        return permission.canShare;
+        result = permission.canShare;
+        break;
       default:
-        return false;
+        result = false;
     }
+
+    console.log(`[CheckPermission] 权限检查结果: ${action}=${result}`);
+    return result;
   }
 
   /**
@@ -85,6 +108,10 @@ export class DocumentPermissionService {
     shareDto: ShareDocumentDto,
     currentUserId: number,
   ): Promise<DocumentPermission> {
+    console.log(
+      `[ShareDocument] 开始分享文档: documentId=${documentId}, currentUserId=${currentUserId}, targetUser=${shareDto.userIdentifier}, role=${shareDto.role}`,
+    );
+
     // 1. 检查当前用户是否有分享权限
     const hasSharePermission = await this.checkPermission(
       currentUserId,
@@ -92,24 +119,40 @@ export class DocumentPermissionService {
       'share',
     );
 
+    console.log(
+      `[ShareDocument] 分享权限检查结果: hasSharePermission=${hasSharePermission}`,
+    );
+
     if (!hasSharePermission) {
       throw new ForbiddenException('您没有权限分享此文档');
     }
 
-    // 2. 查找目标用户（通过ID或邮箱）
+    // 2. 查找目标用户(通过ID或邮箱)
     let targetUser: UserEntity | null;
 
     if (shareDto.userIdentifier.includes('@')) {
       // 通过邮箱查找
+      console.log(
+        `[ShareDocument] 通过邮箱查找用户: ${shareDto.userIdentifier}`,
+      );
       targetUser = await this.userRepository.findOne({
         where: { email: shareDto.userIdentifier },
       });
     } else {
       // 通过ID查找
+      const userId = parseInt(shareDto.userIdentifier);
+      console.log(
+        `[ShareDocument] 通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
+      );
+      if (isNaN(userId)) {
+        throw new BadRequestException('用户标识符格式错误,应该是用户ID或邮箱');
+      }
       targetUser = await this.userRepository.findOne({
-        where: { id: parseInt(shareDto.userIdentifier) },
+        where: { id: userId },
       });
     }
+
+    console.log(`[ShareDocument] 找到目标用户: ${targetUser?.id}`);
 
     if (!targetUser) {
       throw new NotFoundException('目标用户不存在');
@@ -123,8 +166,16 @@ export class DocumentPermissionService {
       },
     });
 
+    console.log(
+      `[ShareDocument] 现有权限检查: existingPermission=${existingPermission?.id}`,
+    );
+
     // 4. 根据角色设置权限
     const permissionData = this.getRolePermissions(shareDto.role);
+
+    console.log(
+      `[ShareDocument] 角色权限数据: ${JSON.stringify(permissionData)}`,
+    );
 
     // 允许自定义权限覆盖默认权限
     if (shareDto.canRead !== undefined)
@@ -136,22 +187,35 @@ export class DocumentPermissionService {
     if (shareDto.canShare !== undefined)
       permissionData.canShare = shareDto.canShare;
 
+    console.log(
+      `[ShareDocument] 最终权限数据: ${JSON.stringify(permissionData)}`,
+    );
+
     if (existingPermission) {
       // 更新现有权限
+      console.log(`[ShareDocument] 更新现有权限: ${existingPermission.id}`);
       Object.assign(existingPermission, {
         role: shareDto.role,
         ...permissionData,
       });
-      return await this.permissionRepository.save(existingPermission);
+      const result = await this.permissionRepository.save(existingPermission);
+      console.log(`[ShareDocument] 权限更新成功`);
+      return result;
     } else {
       // 创建新权限
+      console.log(`[ShareDocument] 创建新权限`);
       const permission = this.permissionRepository.create({
         documentId: documentId,
         userId: targetUser.id,
         role: shareDto.role,
         ...permissionData,
       });
-      return await this.permissionRepository.save(permission);
+      console.log(
+        `[ShareDocument] 准备保存的权限对象: ${JSON.stringify(permission)}`,
+      );
+      const result = await this.permissionRepository.save(permission);
+      console.log(`[ShareDocument] 权限创建成功: ${result.id}`);
+      return result;
     }
   }
 
