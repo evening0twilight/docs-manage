@@ -4,11 +4,11 @@ import { PermissionRole } from '../document-permission.entity';
 
 export class ShareDocumentDto {
   @ApiProperty({
-    description: '分享给的用户 ID 或邮箱',
-    example: 'user-uuid-123 或 user@example.com',
+    description: '分享给的用户标识(用户ID、用户名或邮箱)',
+    example: '123 或 username 或 user@example.com',
   })
   @IsString()
-  userIdentifier: string; // 可以是 userId 或 email
+  userIdentifier: string; // 可以是 userId、username 或 email
 
   @ApiProperty({
     description: '权限角色',

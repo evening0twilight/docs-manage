@@ -127,8 +127,8 @@ export class DocumentPermissionService {
       throw new ForbiddenException('您没有权限分享此文档');
     }
 
-    // 2. 查找目标用户(通过ID或邮箱)
-    let targetUser: UserEntity | null;
+    // 2. 查找目标用户(通过ID、邮箱或用户名)
+    let targetUser: UserEntity | null = null;
 
     if (shareDto.userIdentifier.includes('@')) {
       // 通过邮箱查找
@@ -139,17 +139,27 @@ export class DocumentPermissionService {
         where: { email: shareDto.userIdentifier },
       });
     } else {
-      // 通过ID查找
+      // 尝试作为用户ID查找
       const userId = parseInt(shareDto.userIdentifier);
       console.log(
-        `[ShareDocument] 通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
+        `[ShareDocument] 尝试通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
       );
-      if (isNaN(userId)) {
-        throw new BadRequestException('用户标识符格式错误,应该是用户ID或邮箱');
+      
+      if (!isNaN(userId)) {
+        targetUser = await this.userRepository.findOne({
+          where: { id: userId },
+        });
       }
-      targetUser = await this.userRepository.findOne({
-        where: { id: userId },
-      });
+      
+      // 如果ID查找失败,尝试作为用户名查找
+      if (!targetUser) {
+        console.log(
+          `[ShareDocument] ID查找失败,尝试通过用户名查找: ${shareDto.userIdentifier}`,
+        );
+        targetUser = await this.userRepository.findOne({
+          where: { username: shareDto.userIdentifier },
+        });
+      }
     }
 
     console.log(`[ShareDocument] 找到目标用户: ${targetUser?.id}`);
