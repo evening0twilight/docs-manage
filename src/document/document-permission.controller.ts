@@ -44,17 +44,26 @@ export class DocumentPermissionController {
     @Body() shareDto: ShareDocumentDto,
     @Request() req,
   ) {
-    const permission = await this.permissionService.shareDocument(
-      Number(documentId),
-      shareDto,
-      Number(req.user.sub),
-    );
+    try {
+      console.log(
+        `[Controller] 分享文档请求: documentId=${documentId}, userId=${req.user.sub}, shareDto=${JSON.stringify(shareDto)}`,
+      );
 
-    return {
-      success: true,
-      data: permission,
-      message: '文档分享成功',
-    };
+      const permission = await this.permissionService.shareDocument(
+        Number(documentId),
+        shareDto,
+        Number(req.user.sub),
+      );
+
+      return {
+        success: true,
+        data: permission,
+        message: '文档分享成功',
+      };
+    } catch (error) {
+      console.error(`[Controller] 分享文档失败:`, error);
+      throw error;
+    }
   }
 
   @Get()

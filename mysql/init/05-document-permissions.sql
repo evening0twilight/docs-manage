@@ -23,17 +23,17 @@ CREATE TABLE IF NOT EXISTS `document_permissions` (
 INSERT INTO `document_permissions` (`id`, `document_id`, `user_id`, `role`, `can_read`, `can_write`, `can_delete`, `can_share`)
 SELECT 
   UUID() as id,
-  `id` as document_id,
-  `creator_id` as user_id,
+  `file_system_items`.`id` as document_id,
+  `file_system_items`.`creator_id` as user_id,
   'owner' as role,
   TRUE as can_read,
   TRUE as can_write,
   TRUE as can_delete,
   TRUE as can_share
 FROM `file_system_items`
-WHERE `itemType` = 'document'
+WHERE `file_system_items`.`itemType` = 'document'
 AND NOT EXISTS (
   SELECT 1 FROM `document_permissions` 
-  WHERE `document_id` = `file_system_items`.`id` 
-  AND `user_id` = `file_system_items`.`creator_id`
+  WHERE `document_permissions`.`document_id` = `file_system_items`.`id` 
+  AND `document_permissions`.`user_id` = `file_system_items`.`creator_id`
 );
