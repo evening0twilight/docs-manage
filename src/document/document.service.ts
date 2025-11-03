@@ -437,9 +437,37 @@ export class DocumentService {
       throw new HttpException('项目不存在', HttpStatus.NOT_FOUND);
     }
 
-    // 权限检查：只有创建者可以更新
-    if (existingItem.creatorId !== currentUserId) {
-      throw new HttpException('无权修改此项目', HttpStatus.FORBIDDEN);
+    // 权限检查：创建者拥有所有权限
+    if (existingItem.creatorId === currentUserId) {
+      // 创建者可以更新
+    } else {
+      // 非创建者需要检查权限表
+      const userPermission = await this.permissionRepository.findOne({
+        where: {
+          documentId: id,
+          userId: currentUserId,
+        },
+      });
+
+      if (!userPermission) {
+        throw new HttpException('无权修改此项目', HttpStatus.FORBIDDEN);
+      }
+
+      // 检查是否有写权限 (editor 角色或 canWrite 为 true 才能编辑)
+      if (!userPermission.canWrite) {
+        throw new HttpException(
+          '您只有查看权限，无法编辑',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      // 文件夹只有创建者可以修改
+      if (existingItem.itemType === ItemType.FOLDER) {
+        throw new HttpException(
+          '只有创建者可以修改文件夹',
+          HttpStatus.FORBIDDEN,
+        );
+      }
     }
 
     // 根据项目类型进行智能处理
