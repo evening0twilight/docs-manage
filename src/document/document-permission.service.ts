@@ -144,13 +144,13 @@ export class DocumentPermissionService {
       console.log(
         `[ShareDocument] 尝试通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
       );
-      
+
       if (!isNaN(userId)) {
         targetUser = await this.userRepository.findOne({
           where: { id: userId },
         });
       }
-      
+
       // 如果ID查找失败,尝试作为用户名查找
       if (!targetUser) {
         console.log(

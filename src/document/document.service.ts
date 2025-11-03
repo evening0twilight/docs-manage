@@ -16,12 +16,15 @@ import {
   UpdateDocumentDto,
 } from './dto/update-document.dto';
 import { QueryDocumentDto } from './dto/query-document.dto';
+import { DocumentPermission } from './document-permission.entity';
 
 @Injectable()
 export class DocumentService {
   constructor(
     @InjectRepository(FileSystemItemEntity)
     private readonly documentRepository: Repository<FileSystemItemEntity>,
+    @InjectRepository(DocumentPermission)
+    private readonly permissionRepository: Repository<DocumentPermission>,
   ) {}
 
   // 创建文档 (需要传入当前用户ID)
@@ -219,11 +222,11 @@ export class DocumentService {
     return { list: docs, count: count };
   }
 
-  // 获取文档详情 (检查访问权限)
+  // 获取文档详情 (检查访问权限并返回权限信息)
   async findDocsOne(
     id: number,
     currentUserId?: number,
-  ): Promise<FileSystemItemEntity | null> {
+  ): Promise<FileSystemItemEntity & { permission?: string }> {
     const doc = await this.documentRepository.findOne({
       where: { id, isDeleted: false },
       relations: ['creator'],
@@ -245,10 +248,32 @@ export class DocumentService {
       isEqual: doc.creatorId === currentUserId,
     });
 
-    // 权限检查
-    if (doc.visibility === 'private' && doc.creatorId !== currentUserId) {
-      console.warn('[findDocsOne] 权限检查失败 - 用户无权访问private文档');
-      throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
+    // 确定用户权限
+    let permission: string = 'viewer'; // 默认为查看者
+
+    if (doc.creatorId === currentUserId) {
+      // 文档创建者拥有所有权限
+      permission = 'owner';
+    } else {
+      // 查询权限表
+      const userPermission = await this.permissionRepository.findOne({
+        where: {
+          documentId: id,
+          userId: currentUserId,
+        },
+      });
+
+      if (userPermission) {
+        permission = userPermission.role; // 'editor' 或 'viewer'
+      } else {
+        // 如果不是创建者且没有权限记录
+        if (doc.visibility === 'private') {
+          console.warn('[findDocsOne] 权限检查失败 - 用户无权访问private文档');
+          throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
+        }
+        // public 文档默认为 viewer
+        permission = 'viewer';
+      }
     }
 
     // 只返回创建者的用户名，不返回敏感信息
@@ -260,10 +285,11 @@ export class DocumentService {
       doc.creator = creatorInfo as any;
     }
 
-    return doc;
+    // 添加权限字段到返回结果
+    return { ...doc, permission };
   }
 
-  // 更新文档 (只有创建者可以更新)
+  // 更新文档 (创建者和编辑者可以更新)
   async updateById(
     id: number,
     updateDocumentDto: UpdateDocumentDto,
@@ -277,9 +303,29 @@ export class DocumentService {
       throw new HttpException('文档不存在', HttpStatus.NOT_FOUND);
     }
 
-    // 权限检查：只有创建者可以更新
-    if (existDoc.creatorId !== currentUserId) {
-      throw new HttpException('无权修改此文档', HttpStatus.FORBIDDEN);
+    // 权限检查：创建者拥有所有权限
+    if (existDoc.creatorId === currentUserId) {
+      // 创建者可以更新
+    } else {
+      // 非创建者需要检查权限表
+      const userPermission = await this.permissionRepository.findOne({
+        where: {
+          documentId: id,
+          userId: currentUserId,
+        },
+      });
+
+      if (!userPermission) {
+        throw new HttpException('无权修改此文档', HttpStatus.FORBIDDEN);
+      }
+
+      // 检查是否有写权限 (viewer 角色或 canWrite 为 false 都不能编辑)
+      if (!userPermission.canWrite) {
+        throw new HttpException(
+          '您只有查看权限，无法编辑',
+          HttpStatus.FORBIDDEN,
+        );
+      }
     }
 
     // 转换 DocumentType 枚举
@@ -299,6 +345,82 @@ export class DocumentService {
 
     const updatedDoc = this.documentRepository.merge(existDoc, updateData);
     return this.documentRepository.save(updatedDoc);
+  }
+
+  // 获取分享给我的文档列表
+  async getSharedWithMe(
+    currentUserId: number,
+    page: number = 1,
+    limit: number = 20,
+    role?: string,
+  ): Promise<{
+    documents: any[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  }> {
+    const queryBuilder = this.documentRepository
+      .createQueryBuilder('doc')
+      .innerJoin('document_permissions', 'p', 'doc.id = p.document_id')
+      .innerJoin('users', 'u', 'doc.creator_id = u.id')
+      .where('p.user_id = :userId', { userId: currentUserId })
+      .andWhere('doc.isDeleted = false');
+
+    // 如果指定了角色过滤
+    if (role) {
+      queryBuilder.andWhere('p.role = :role', { role });
+    }
+
+    // 获取总数
+    const total = await queryBuilder.getCount();
+
+    // 分页查询
+    const documents = await queryBuilder
+      .select([
+        'doc.id as id',
+        'doc.name as name',
+        'doc.description as description',
+        'doc.itemType as itemType',
+        'doc.updated_time as updated_time',
+        'p.role as permission',
+        'p.created_at as sharedAt',
+        'u.id as owner_id',
+        'u.username as owner_username',
+        'u.email as owner_email',
+      ])
+      .orderBy('p.created_at', 'DESC')
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .getRawMany();
+
+    // 格式化返回数据
+    const formattedDocuments = documents.map((doc) => ({
+      id: doc.id,
+      name: doc.name,
+      description: doc.description,
+      itemType: doc.itemType,
+      updated_time: doc.updated_time,
+      permission: doc.permission,
+      sharedAt: doc.sharedAt,
+      owner: {
+        id: doc.owner_id,
+        username: doc.owner_username,
+        email: doc.owner_email,
+      },
+    }));
+
+    return {
+      documents: formattedDocuments,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   // 智能统一更新方法 - 自动识别文件夹或文档
