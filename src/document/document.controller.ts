@@ -519,6 +519,56 @@ export class DocumentController {
     }
   }
 
+  @Get('shared-with-me')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '获取分享给我的文档列表',
+    description: '获取其他用户分享给当前用户的文档列表,支持分页和权限筛选',
+  })
+  @ApiQuery({ name: 'page', required: false, description: '页码,默认1' })
+  @ApiQuery({ name: 'limit', required: false, description: '每页数量,默认20' })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    description: '权限角色筛选(editor/viewer)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+  })
+  async getSharedWithMe(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('role') role?: string,
+    @Request() req?: any,
+  ) {
+    try {
+      const currentUserId = Number(req.user?.sub || req.user?.id);
+      const result = await this.documentService.getSharedWithMe(
+        currentUserId,
+        page || 1,
+        limit || 20,
+        role,
+      );
+      return new ResponseDto(
+        true,
+        '获取分享文档列表成功',
+        result,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '获取分享文档列表失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
