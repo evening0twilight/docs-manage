@@ -564,6 +564,8 @@ export class DocumentService {
     if (updateDto.name !== undefined) updateData.name = updateDto.name;
     if (updateDto.parentId !== undefined)
       updateData.parentId = updateDto.parentId;
+    if (updateDto.sortOrder !== undefined)
+      updateData.sortOrder = updateDto.sortOrder; // 🆕 添加 sortOrder 更新
 
     const updatedItem = this.documentRepository.merge(folderItem, updateData);
     return this.documentRepository.save(updatedItem);
@@ -625,6 +627,8 @@ export class DocumentService {
     if (updateDto.type !== undefined) updateData.documentType = updateDto.type;
     if (updateDto.parentId !== undefined)
       updateData.parentId = updateDto.parentId;
+    if (updateDto.sortOrder !== undefined)
+      updateData.sortOrder = updateDto.sortOrder; // 🆕 添加 sortOrder 更新
 
     const updatedItem = this.documentRepository.merge(documentItem, updateData);
     return this.documentRepository.save(updatedItem);
