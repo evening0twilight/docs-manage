@@ -70,6 +70,15 @@ export class UpdateFileSystemItemDto {
   @IsOptional()
   @IsBoolean({ message: '置顶标志必须是布尔值' })
   isPinned?: boolean;
+
+  @ApiPropertyOptional({
+    description: '排序顺序（由后端自动计算，前端一般不需要手动设置）',
+    example: -1,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: '排序顺序必须是数字' })
+  @Type(() => Number)
+  sortOrder?: number;
 }
 
 // 保持向后兼容的原始DTO
