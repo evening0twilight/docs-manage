@@ -5,6 +5,7 @@ import {
   MinLength,
   IsEnum,
   IsNumber,
+  IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentType } from '../document.entity';
@@ -61,6 +62,14 @@ export class UpdateFileSystemItemDto {
   @IsNumber({}, { message: '父文件夹ID必须是数字' })
   @Type(() => Number)
   parentId?: number;
+
+  @ApiPropertyOptional({
+    description: '是否置顶（true=置顶到最前面，false=取消置顶）',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean({ message: '置顶标志必须是布尔值' })
+  isPinned?: boolean;
 }
 
 // 保持向后兼容的原始DTO

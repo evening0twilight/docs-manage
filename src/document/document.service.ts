@@ -347,6 +347,44 @@ export class DocumentService {
     return this.documentRepository.save(updatedDoc);
   }
 
+  // 🆕 处理置顶逻辑的私有方法
+  private async handlePinLogic(
+    creatorId: number,
+    updateDto: any,
+    currentItemId?: number,
+  ): Promise<void> {
+    if (updateDto.isPinned === true) {
+      // 置顶: 找到当前最小的 sortOrder,然后减1
+      const queryBuilder = this.documentRepository
+        .createQueryBuilder('item')
+        .where('item.creatorId = :creatorId', { creatorId })
+        .andWhere('item.isDeleted = false')
+        .select('MIN(item.sortOrder)', 'min');
+
+      // 如果是更新操作,排除当前项
+      if (currentItemId) {
+        queryBuilder.andWhere('item.id != :currentItemId', { currentItemId });
+      }
+
+      const result = await queryBuilder.getRawOne();
+      const currentMin = result?.min ?? 0;
+
+      // 如果当前最小值 >= 0, 说明没有置顶项,使用 -1
+      // 如果当前最小值 < 0, 说明有置顶项,使用 最小值 - 1
+      updateDto.sortOrder = currentMin >= 0 ? -1 : currentMin - 1;
+
+      console.log('[置顶] 当前最小 sortOrder:', currentMin);
+      console.log('[置顶] 新的 sortOrder:', updateDto.sortOrder);
+    } else if (updateDto.isPinned === false) {
+      // 取消置顶: 恢复为 0
+      updateDto.sortOrder = 0;
+      console.log('[取消置顶] 设置 sortOrder 为 0');
+    }
+
+    // 删除 isPinned 字段,不保存到数据库
+    delete updateDto.isPinned;
+  }
+
   // 获取分享给我的文档列表
   async getSharedWithMe(
     currentUserId: number,
@@ -491,6 +529,15 @@ export class DocumentService {
       );
     }
 
+    // 🆕 处理置顶逻辑
+    if (updateDto.isPinned !== undefined) {
+      await this.handlePinLogic(
+        folderItem.creatorId,
+        updateDto as any,
+        folderItem.id,
+      );
+    }
+
     // 检查同名文件夹
     if (updateDto.name && updateDto.name !== folderItem.name) {
       const existingFolder = await this.documentRepository.findOne({
@@ -541,6 +588,15 @@ export class DocumentService {
       throw new HttpException(
         '文档更新时不能同时指定不同的name和title',
         HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // 🆕 处理置顶逻辑
+    if (updateDto.isPinned !== undefined) {
+      await this.handlePinLogic(
+        documentItem.creatorId,
+        updateDto as any,
+        documentItem.id,
       );
     }
 
