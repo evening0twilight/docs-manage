@@ -385,6 +385,69 @@ export class DocumentService {
     delete updateDto.isPinned;
   }
 
+  // 🆕 检查循环引用的私有方法 (防止文件夹移动到自己的子文件夹中)
+  private async checkCircularReference(
+    folderId: number,
+    targetParentId: number | null,
+  ): Promise<void> {
+    // 移动到根目录 (parentId = null) 不会造成循环
+    if (targetParentId === null) {
+      return;
+    }
+
+    // 不能移动到自己
+    if (folderId === targetParentId) {
+      throw new HttpException('不能将文件夹移动到自己', HttpStatus.BAD_REQUEST);
+    }
+
+    // 递归检查目标父文件夹是否在当前文件夹的子树中
+    let currentParentId: number | null = targetParentId;
+    const checkedIds = new Set<number>([folderId]); // 防止死循环
+
+    while (currentParentId !== null) {
+      // 如果目标文件夹的祖先是当前文件夹,说明会形成循环
+      if (currentParentId === folderId) {
+        throw new HttpException(
+          '不能将文件夹移动到自己的子文件夹中',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // 防止数据库中已存在循环导致的死循环
+      if (checkedIds.has(currentParentId)) {
+        throw new HttpException(
+          '检测到文件夹结构异常,请联系管理员',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+      checkedIds.add(currentParentId);
+
+      // 查找父文件夹的父文件夹
+      const parentFolder = await this.documentRepository.findOne({
+        where: {
+          id: currentParentId,
+          itemType: ItemType.FOLDER,
+          isDeleted: false,
+        },
+        select: ['parentId'],
+      });
+
+      if (!parentFolder) {
+        // 父文件夹不存在,终止检查
+        throw new HttpException('目标文件夹不存在', HttpStatus.NOT_FOUND);
+      }
+
+      currentParentId = parentFolder.parentId;
+    }
+
+    console.log(
+      '[循环检查] 通过: 文件夹',
+      folderId,
+      '可以移动到',
+      targetParentId,
+    );
+  }
+
   // 获取分享给我的文档列表
   async getSharedWithMe(
     currentUserId: number,
@@ -529,6 +592,14 @@ export class DocumentService {
       );
     }
 
+    // 🆕 检查循环引用 (文件夹移动时)
+    if (
+      updateDto.parentId !== undefined &&
+      updateDto.parentId !== folderItem.parentId
+    ) {
+      await this.checkCircularReference(folderItem.id, updateDto.parentId);
+    }
+
     // 🆕 处理置顶逻辑
     if (updateDto.isPinned !== undefined) {
       await this.handlePinLogic(
@@ -647,6 +718,23 @@ export class DocumentService {
     // 权限检查：只有创建者可以删除
     if (existDoc.creatorId !== currentUserId) {
       throw new HttpException('无权删除此文档', HttpStatus.FORBIDDEN);
+    }
+
+    // 🆕 如果是文件夹，检查是否包含子项
+    if (existDoc.itemType === ItemType.FOLDER) {
+      const childrenCount = await this.documentRepository.count({
+        where: {
+          parentId: id,
+          isDeleted: false,
+        },
+      });
+
+      if (childrenCount > 0) {
+        throw new HttpException(
+          `该文件夹下还有 ${childrenCount} 个项目，请先清空文件夹再删除`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
     }
 
     // 软删除
