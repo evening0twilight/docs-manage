@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 import { DocumentController } from './document.controller';
 import { DocumentPermissionController } from './document-permission.controller';
+import { DocumentCommentController } from './document-comment.controller';
 import { DocumentService } from './document.service';
 import { DocumentPermissionService } from './document-permission.service';
+import { DocumentCommentService } from './document-comment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileSystemItemEntity } from './document.entity';
 import { DocumentPermission } from './document-permission.entity';
+import { DocumentComment } from './document-comment.entity';
 import { UserEntity } from '../users/user.entity';
 // 文件上传模块
 import { MulterModule } from '@nestjs/platform-express';
@@ -17,6 +20,7 @@ import { PassportModule } from '@nestjs/passport';
     TypeOrmModule.forFeature([
       FileSystemItemEntity,
       DocumentPermission,
+      DocumentComment,
       UserEntity,
     ]),
     MulterModule.register({
@@ -24,8 +28,16 @@ import { PassportModule } from '@nestjs/passport';
     }),
     PassportModule, // 导入 PassportModule 以支持 JWT 认证
   ],
-  controllers: [DocumentController, DocumentPermissionController],
-  providers: [DocumentService, DocumentPermissionService],
-  exports: [DocumentService, DocumentPermissionService],
+  controllers: [
+    DocumentController,
+    DocumentPermissionController,
+    DocumentCommentController,
+  ],
+  providers: [
+    DocumentService,
+    DocumentPermissionService,
+    DocumentCommentService,
+  ],
+  exports: [DocumentService, DocumentPermissionService, DocumentCommentService],
 })
 export class DocumentModule {}
