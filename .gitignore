@@ -73,3 +73,7 @@ mysql/data/
 
 # 测试文件
 test-env.js
+
+# Markdown files (exclude all .md files except README.md)
+*.md
+!README.md
