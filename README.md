@@ -448,11 +448,51 @@ npx ts-node scripts/seed-documents.ts 10 --prod
 
 ## 🚢 部署指南
 
-### 手动部署
+### 🔧 生产环境快速修复（当前环境）
+
+如果你的生产环境遇到 Nginx 端口冲突或数据库表类型错误，执行快速修复：
+
+```bash
+# SSH 连接到服务器
+ssh root@your-server-ip
+
+# 进入项目目录
+cd /home/deploy/docs-manage
+
+# 拉取最新代码
+git pull origin main
+
+# 执行修复脚本(包含清理 Nginx + 删除旧表 + 重启服务)
+bash scripts/production-hotfix.sh
+```
+
+**修复脚本会自动:**
+1. ✅ 清理系统级 Nginx,释放 80/443 端口
+2. ✅ 删除错误的 `document_comments` 表
+3. ✅ 重新构建应用镜像
+4. ✅ 启动所有服务
+5. ✅ 验证服务状态
+
+### 手动部署（全新服务器）
 
 #### 1. 服务器准备
 
 ```bash
+# 下载部署脚本
+curl -O https://raw.githubusercontent.com/evening0twilight/docs-manage/main/deploy.sh
+chmod +x deploy.sh
+
+# 执行部署(会自动清理系统 Nginx)
+sudo bash deploy.sh
+```
+
+或手动安装依赖:
+
+```bash
+# 清理可能冲突的系统 Nginx
+sudo apt remove --purge nginx nginx-common nginx-core -y
+sudo systemctl mask nginx
+
 # 安装 Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
@@ -468,7 +508,6 @@ sudo chmod +x /usr/local/bin/docker-compose
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow 3000/tcp
 sudo ufw --force enable
 ```
 
@@ -509,9 +548,63 @@ sudo docker-compose up -d
 - `SERVER_SSH_KEY`: SSH 私钥
 - `SERVER_PORT`: SSH 端口（默认 22）
 
-### Nginx 配置（可选）
+### ⚠️ 常见部署问题
 
-如果需要使用域名和 HTTPS，配置 Nginx 反向代理：
+#### 问题 1: Nginx 502 Bad Gateway
+
+**原因:** 系统级 Nginx 占用端口 80,导致 Docker Nginx 无法启动
+
+**解决:**
+```bash
+# 方案 1: 使用快速修复脚本
+bash scripts/production-hotfix.sh
+
+# 方案 2: 手动清理
+bash scripts/cleanup-system-nginx.sh
+docker-compose restart
+```
+
+#### 问题 2: 应用启动失败 - 外键类型不匹配
+
+**原因:** 旧版本的 `document_comments` 表使用 BIGINT,与 `file_system_items.id`(INT) 不兼容
+
+**解决:**
+```bash
+# 删除旧表,让 TypeORM 重新创建
+bash scripts/fix-comment-table.sh
+```
+
+#### 问题 3: 端口已被占用
+
+**检查占用端口的进程:**
+```bash
+sudo lsof -i :80
+sudo lsof -i :3000
+```
+
+**停止占用进程或修改 docker-compose.yml 端口映射**
+
+### Docker Compose 配置（推荐）
+
+项目使用 Docker Compose 统一管理所有服务，**强烈建议使用 Docker 而不是系统级安装**:
+
+**优势:**
+- ✅ 环境隔离，避免端口冲突
+- ✅ 一键启动/停止所有服务
+- ✅ 版本控制，易于回滚
+- ✅ 统一配置管理
+
+**不建议系统级安装 Nginx/MySQL:**
+- ❌ 端口冲突（80/3306）
+- ❌ 版本管理困难
+- ❌ 配置分散
+- ❌ 难以迁移
+
+### Nginx 配置（可选 - 使用 Docker Nginx）
+
+项目已在 `docker-compose.yml` 中配置 Nginx 服务，无需额外安装。
+
+如需自定义配置，编辑 `nginx/nginx.conf`:
 
 ```nginx
 server {

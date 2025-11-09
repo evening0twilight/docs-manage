@@ -4,6 +4,13 @@
 
 echo "开始部署文档管理系统..."
 
+# ========== 第一步: 清理系统 Nginx ==========
+echo ""
+echo "=========================================="
+echo "清理系统级 Nginx(防止端口冲突)..."
+echo "=========================================="
+bash scripts/cleanup-system-nginx.sh
+
 # 更新系统
 sudo apt update && sudo apt upgrade -y
 

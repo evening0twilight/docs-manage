@@ -12,13 +12,13 @@ import { UserEntity } from '../users/user.entity';
 
 @Entity('document_comments')
 export class DocumentComment {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'bigint', unsigned: true, name: 'document_id' })
+  @Column({ type: 'int', unsigned: true, name: 'document_id' })
   documentId: number;
 
-  @Column({ type: 'bigint', unsigned: true, name: 'user_id' })
+  @Column({ type: 'int', unsigned: true, name: 'user_id' })
   userId: number;
 
   @Column({ type: 'text', comment: '评论内容' })
@@ -42,7 +42,7 @@ export class DocumentComment {
   resolved: boolean;
 
   @Column({
-    type: 'bigint',
+    type: 'int',
     unsigned: true,
     nullable: true,
     name: 'resolved_by',
@@ -59,11 +59,11 @@ export class DocumentComment {
   resolvedAt: Date | null;
 
   @Column({
-    type: 'bigint',
+    type: 'int',
     unsigned: true,
     nullable: true,
     name: 'parent_id',
-    comment: '父评论ID（用于回复）',
+    comment: '父评论ID(用于回复)',
   })
   parentId: number | null;
 

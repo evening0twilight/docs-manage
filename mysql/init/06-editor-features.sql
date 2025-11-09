@@ -114,9 +114,9 @@ CREATE TABLE IF NOT EXISTS `collaboration_participants` (
 -- 4. 文档评论表
 -- ========================================
 CREATE TABLE IF NOT EXISTS `document_comments` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `document_id` BIGINT UNSIGNED NOT NULL COMMENT '文档ID',
-  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '评论者ID',
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `document_id` INT UNSIGNED NOT NULL COMMENT '文档ID',
+  `user_id` INT UNSIGNED NOT NULL COMMENT '评论者ID',
   
   -- 评论内容
   `content` TEXT NOT NULL COMMENT '评论内容',
@@ -128,11 +128,11 @@ CREATE TABLE IF NOT EXISTS `document_comments` (
   
   -- 状态
   `resolved` BOOLEAN DEFAULT FALSE COMMENT '是否已解决',
-  `resolved_by` BIGINT UNSIGNED NULL COMMENT '解决者ID',
+  `resolved_by` INT UNSIGNED NULL COMMENT '解决者ID',
   `resolved_at` TIMESTAMP NULL COMMENT '解决时间',
   
   -- 回复关系
-  `parent_id` BIGINT UNSIGNED NULL COMMENT '父评论ID（用于回复）',
+  `parent_id` INT UNSIGNED NULL COMMENT '父评论ID（用于回复）',
   `reply_count` INT DEFAULT 0 COMMENT '回复数量',
   
   -- 时间戳
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS `document_comments` (
   
   CONSTRAINT `fk_comment_document` 
     FOREIGN KEY (`document_id`) 
-    REFERENCES `documents`(`id`) 
+    REFERENCES `file_system_items`(`id`) 
     ON DELETE CASCADE,
   CONSTRAINT `fk_comment_user` 
     FOREIGN KEY (`user_id`) 
