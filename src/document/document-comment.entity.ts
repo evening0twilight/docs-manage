@@ -15,10 +15,10 @@ export class DocumentComment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', unsigned: true, name: 'document_id' })
+  @Column({ type: 'int', name: 'document_id' })
   documentId: number;
 
-  @Column({ type: 'int', unsigned: true, name: 'user_id' })
+  @Column({ type: 'int', name: 'user_id' })
   userId: number;
 
   @Column({ type: 'text', comment: '评论内容' })
@@ -43,7 +43,6 @@ export class DocumentComment {
 
   @Column({
     type: 'int',
-    unsigned: true,
     nullable: true,
     name: 'resolved_by',
     comment: '解决者ID',
@@ -60,7 +59,6 @@ export class DocumentComment {
 
   @Column({
     type: 'int',
-    unsigned: true,
     nullable: true,
     name: 'parent_id',
     comment: '父评论ID(用于回复)',
