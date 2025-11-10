@@ -64,6 +64,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/ssl:/etc/nginx/ssl
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/docs-platform:/usr/share/nginx/html:ro
     depends_on:
       - app
     restart: unless-stopped
