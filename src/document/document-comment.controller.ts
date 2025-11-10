@@ -26,7 +26,7 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 
 @ApiTags('评论管理')
 @ApiBearerAuth()
-@Controller('api/documents/:documentId/comments')
+@Controller('documents/:documentId/comments')
 @UseGuards(JwtAuthGuard)
 export class DocumentCommentController {
   constructor(private readonly commentService: DocumentCommentService) {}
