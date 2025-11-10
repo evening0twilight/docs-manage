@@ -12,8 +12,9 @@ import { DocumentComment } from './document-comment.entity';
 import { UserEntity } from '../users/user.entity';
 // 文件上传模块
 import { MulterModule } from '@nestjs/platform-express';
-// 导入 PassportModule 以支持 JWT 认证
+// 导入 PassportModule 和 JwtModule 以支持 JWT 认证
 import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PassportModule } from '@nestjs/passport';
       dest: './uploads', // 文件上传目录
     }),
     PassportModule, // 导入 PassportModule 以支持 JWT 认证
+    JwtModule.register({}), // 导入 JwtModule 以支持 JWT 认证
   ],
   controllers: [
     DocumentController,
