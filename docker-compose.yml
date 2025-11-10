@@ -58,13 +58,12 @@ services:
     image: nginx:alpine
     container_name: docs-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/ssl:/etc/nginx/ssl
       - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/docs-platform:/usr/share/nginx/html:ro
     depends_on:
       - app
     restart: unless-stopped
