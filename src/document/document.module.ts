@@ -15,6 +15,7 @@ import { MulterModule } from '@nestjs/platform-express';
 // 导入 PassportModule 和 JwtModule 以支持 JWT 认证
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { JwtModule } from '@nestjs/jwt';
     }),
     PassportModule, // 导入 PassportModule 以支持 JWT 认证
     JwtModule.register({}), // 导入 JwtModule 以支持 JWT 认证
+    EventsModule, // 导入 EventsModule 以支持 WebSocket 通知
   ],
   controllers: [
     DocumentController,
