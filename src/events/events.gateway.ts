@@ -61,6 +61,7 @@ export class EventsGateway
   private connectedUsers: Map<string, UserInfo> = new Map(); // socketId -> UserInfo
   private documentRooms: Map<string, DocumentRoom> = new Map(); // documentId -> DocumentRoom
   private userColors: Map<string, string> = new Map(); // userId -> color
+  private userSessions: Map<string, string> = new Map(); // userId -> socketId (最新登录)
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   afterInit(_server: Server) {
@@ -103,6 +104,11 @@ export class EventsGateway
         }
       });
 
+      // 清理用户会话(仅当是当前socketId时)
+      if (this.userSessions.get(userInfo.userId) === client.id) {
+        this.userSessions.delete(userInfo.userId);
+      }
+
       this.connectedUsers.delete(client.id);
       this.logger.log(
         `用户 ${userInfo.username} 断开连接 (socketId: ${client.id})`,
@@ -123,7 +129,33 @@ export class EventsGateway
     const { userId, username, avatar } = data;
     const userInfo: UserInfo = { userId, username, avatar };
 
+    // 检查该用户是否已在其他地方登录
+    const existingSocketId = this.userSessions.get(userId);
+    if (existingSocketId && existingSocketId !== client.id) {
+      // 找到旧的socket连接
+      const oldSocket = this.server.sockets.sockets.get(existingSocketId);
+      if (oldSocket) {
+        this.logger.log(
+          `用户 ${username} (${userId}) 在其他地方登录，踢出旧连接 ${existingSocketId}`,
+        );
+
+        // 通知旧连接被踢下线
+        oldSocket.emit('force-logout', {
+          message: '您的账号已在其他地方登录',
+          timestamp: new Date().toISOString(),
+        });
+
+        // 断开旧连接
+        oldSocket.disconnect(true);
+
+        // 清理旧连接的数据
+        this.connectedUsers.delete(existingSocketId);
+      }
+    }
+
+    // 保存新的连接
     this.connectedUsers.set(client.id, userInfo);
+    this.userSessions.set(userId, client.id);
 
     // 为用户分配唯一颜色（用于光标显示）
     if (!this.userColors.has(userId)) {

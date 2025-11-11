@@ -17,6 +17,7 @@ import {
 } from './dto/update-document.dto';
 import { QueryDocumentDto } from './dto/query-document.dto';
 import { DocumentPermission } from './document-permission.entity';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class DocumentService {
@@ -25,6 +26,7 @@ export class DocumentService {
     private readonly documentRepository: Repository<FileSystemItemEntity>,
     @InjectRepository(DocumentPermission)
     private readonly permissionRepository: Repository<DocumentPermission>,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   // 创建文档 (需要传入当前用户ID)
@@ -226,7 +228,12 @@ export class DocumentService {
   async findDocsOne(
     id: number,
     currentUserId?: number,
-  ): Promise<FileSystemItemEntity & { permission?: string }> {
+  ): Promise<
+    FileSystemItemEntity & {
+      permission?: string;
+      isCollaborationEnabled?: boolean;
+    }
+  > {
     const doc = await this.documentRepository.findOne({
       where: { id, isDeleted: false },
       relations: ['creator'],
@@ -246,6 +253,7 @@ export class DocumentService {
       userIdType: typeof currentUserId,
       creatorIdType: typeof doc.creatorId,
       isEqual: doc.creatorId === currentUserId,
+      isCollaborationEnabled: doc.isCollaborationEnabled,
     });
 
     // 确定用户权限
@@ -255,24 +263,31 @@ export class DocumentService {
       // 文档创建者拥有所有权限
       permission = 'owner';
     } else {
-      // 查询权限表
-      const userPermission = await this.permissionRepository.findOne({
-        where: {
-          documentId: id,
-          userId: currentUserId,
-        },
-      });
-
-      if (userPermission) {
-        permission = userPermission.role; // 'editor' 或 'viewer'
-      } else {
-        // 如果不是创建者且没有权限记录
-        if (doc.visibility === 'private') {
-          console.warn('[findDocsOne] 权限检查失败 - 用户无权访问private文档');
-          throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
-        }
-        // public 文档默认为 viewer
+      // 如果协同未开启，所有非owner用户只能是viewer
+      if (!doc.isCollaborationEnabled) {
         permission = 'viewer';
+      } else {
+        // 查询权限表
+        const userPermission = await this.permissionRepository.findOne({
+          where: {
+            documentId: id,
+            userId: currentUserId,
+          },
+        });
+
+        if (userPermission) {
+          permission = userPermission.role; // 'editor' 或 'viewer'
+        } else {
+          // 如果不是创建者且没有权限记录
+          if (doc.visibility === 'private') {
+            console.warn(
+              '[findDocsOne] 权限检查失败 - 用户无权访问private文档',
+            );
+            throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
+          }
+          // public 文档默认为 viewer
+          permission = 'viewer';
+        }
       }
     }
 
@@ -285,8 +300,12 @@ export class DocumentService {
       doc.creator = creatorInfo as any;
     }
 
-    // 添加权限字段到返回结果
-    return { ...doc, permission };
+    // 添加权限字段和协同开关状态到返回结果
+    return {
+      ...doc,
+      permission,
+      isCollaborationEnabled: doc.isCollaborationEnabled,
+    };
   }
 
   // 更新文档 (创建者和编辑者可以更新)
@@ -740,6 +759,71 @@ export class DocumentService {
     // 软删除
     existDoc.isDeleted = true;
     await this.documentRepository.save(existDoc);
+  }
+
+  // 切换协同编辑开关
+  async toggleCollaboration(
+    documentId: number,
+    enabled: boolean,
+    currentUserId: number,
+  ): Promise<{
+    isCollaborationEnabled: boolean;
+    affectedPermissions: number;
+  }> {
+    // 查找文档
+    const document = await this.documentRepository.findOne({
+      where: { id: documentId, isDeleted: false },
+    });
+
+    if (!document) {
+      throw new HttpException('文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    // 检查是否为文档所有者
+    if (document.creatorId !== currentUserId) {
+      throw new HttpException('仅文档所有者可以操作', HttpStatus.FORBIDDEN);
+    }
+
+    // 更新协同开关状态
+    document.isCollaborationEnabled = enabled;
+    await this.documentRepository.save(document);
+
+    let affectedCount = 0;
+
+    // 如果关闭协同，将所有非owner的editor权限降为viewer
+    if (!enabled) {
+      const permissions = await this.permissionRepository.find({
+        where: {
+          documentId,
+          userId: Not(currentUserId),
+          role: 'editor' as any,
+        },
+      });
+
+      for (const permission of permissions) {
+        permission.role = 'viewer' as any;
+        permission.canWrite = false;
+        permission.canDelete = false;
+        permission.canShare = false;
+      }
+
+      if (permissions.length > 0) {
+        await this.permissionRepository.save(permissions);
+        affectedCount = permissions.length;
+      }
+    }
+
+    // 通过WebSocket通知所有在线用户协同状态变化
+    this.eventsGateway.notifyCollaborationToggle(
+      String(documentId),
+      enabled,
+      String(currentUserId),
+    );
+
+    return {
+      isCollaborationEnabled: enabled,
+      affectedPermissions: affectedCount,
+    };
   }
 
   // 获取用户创建的文档列表
