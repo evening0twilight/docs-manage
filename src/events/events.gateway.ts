@@ -9,8 +9,9 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
-import { WsJwtGuard } from './guards/ws-jwt.guard';
+import { Logger } from '@nestjs/common';
+// import { UseGuards } from '@nestjs/common'; // 如果需要使用守卫再取消注释
+// import { WsJwtGuard } from './guards/ws-jwt.guard'; // 如果需要使用守卫再取消注释
 
 interface UserInfo {
   userId: string;
@@ -23,12 +24,12 @@ interface DocumentRoom {
   users: Map<string, UserInfo>; // socketId -> UserInfo
 }
 
-interface CursorPosition {
-  userId: string;
-  username: string;
-  position: { line: number; column: number };
-  color: string;
-}
+// interface CursorPosition {  // 暂未使用,需要时取消注释
+//   userId: string;
+//   username: string;
+//   position: { line: number; column: number };
+//   color: string;
+// }
 
 interface DocumentEdit {
   userId: string;
@@ -61,7 +62,9 @@ export class EventsGateway
   private documentRooms: Map<string, DocumentRoom> = new Map(); // documentId -> DocumentRoom
   private userColors: Map<string, string> = new Map(); // userId -> color
 
-  afterInit(server: Server) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  afterInit(_server: Server) {
+    // 使用 _server 前缀表示参数未使用但是接口要求
     this.logger.log('WebSocket Gateway 初始化完成');
   }
 
@@ -158,7 +161,7 @@ export class EventsGateway
     }
 
     // 加入 Socket.IO 房间
-    client.join(documentId);
+    void client.join(documentId); // 使用 void 标记表示有意忽略 Promise
 
     // 创建或获取文档房间
     if (!this.documentRooms.has(documentId)) {
@@ -215,7 +218,7 @@ export class EventsGateway
     }
 
     // 离开 Socket.IO 房间
-    client.leave(documentId);
+    void client.leave(documentId); // 使用 void 标记表示有意忽略 Promise
 
     // 从文档房间中移除
     const room = this.documentRooms.get(documentId);
@@ -411,6 +414,61 @@ export class EventsGateway
   getDocumentUsers(documentId: string): UserInfo[] {
     const room = this.documentRooms.get(documentId);
     return room ? Array.from(room.users.values()) : [];
+  }
+
+  /**
+   * 通知文档权限更新
+   */
+  notifyPermissionUpdate(documentId: string, userId: string, permission: any) {
+    this.logger.log(
+      `通知权限更新: documentId=${documentId}, userId=${userId}, permission=${JSON.stringify(permission)}`,
+    );
+
+    // 找到该用户的所有连接
+    const userSockets: string[] = [];
+    this.connectedUsers.forEach((userInfo, socketId) => {
+      if (userInfo.userId === userId) {
+        userSockets.push(socketId);
+      }
+    });
+
+    // 向该用户的所有连接发送权限更新通知
+    userSockets.forEach((socketId) => {
+      this.server.to(socketId).emit('permission-updated', {
+        documentId,
+        userId,
+        permission,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // 同时通知文档房间内的所有人(让owner知道权限已更新)
+    this.server.to(documentId).emit('document-permission-changed', {
+      documentId,
+      userId,
+      permission,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * 通知协同功能状态变化
+   */
+  notifyCollaborationToggle(
+    documentId: string,
+    enabled: boolean,
+    ownerId: string,
+  ) {
+    this.logger.log(
+      `通知协同状态变化: documentId=${documentId}, enabled=${enabled}, ownerId=${ownerId}`,
+    );
+
+    this.server.to(documentId).emit('collaboration-toggled', {
+      documentId,
+      enabled,
+      ownerId,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   /**

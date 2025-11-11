@@ -7,6 +7,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class CreateCommentDto {
   @ApiProperty({
@@ -25,6 +26,9 @@ export class CreateCommentDto {
   @IsString()
   @IsOptional()
   @MaxLength(500, { message: '引用文本不能超过500字符' })
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : (value as string),
+  )
   quotedText?: string;
 
   @ApiProperty({ description: '起始位置（字符偏移）', example: 100 })

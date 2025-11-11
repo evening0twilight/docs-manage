@@ -23,13 +23,17 @@ import {
   ShareDocumentDto,
   UpdatePermissionDto,
 } from './dto/share-document.dto';
+import { EventsGateway } from '../events/events.gateway';
 
 @ApiTags('document-permissions')
 @Controller('documents/:documentId/permissions')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth('JWT-auth')
 export class DocumentPermissionController {
-  constructor(private readonly permissionService: DocumentPermissionService) {}
+  constructor(
+    private readonly permissionService: DocumentPermissionService,
+    private readonly eventsGateway: EventsGateway,
+  ) {}
 
   @Post('share')
   @ApiOperation({ summary: '分享文档给用户' })
@@ -53,6 +57,19 @@ export class DocumentPermissionController {
         Number(documentId),
         shareDto,
         Number(req.user.sub),
+      );
+
+      // 通过WebSocket通知被分享的用户
+      this.eventsGateway.notifyPermissionUpdate(
+        documentId,
+        String(permission.userId),
+        {
+          role: permission.role,
+          canRead: permission.canRead,
+          canWrite: permission.canWrite,
+          canDelete: permission.canDelete,
+          canShare: permission.canShare,
+        },
       );
 
       return {
@@ -98,6 +115,7 @@ export class DocumentPermissionController {
     description: '更新成功',
   })
   async updatePermission(
+    @Param('documentId') documentId: string,
     @Param('permissionId') permissionId: string,
     @Body() updateDto: UpdatePermissionDto,
     @Request() req,
@@ -106,6 +124,19 @@ export class DocumentPermissionController {
       permissionId,
       updateDto,
       Number(req.user.sub),
+    );
+
+    // 通过WebSocket通知权限变更
+    this.eventsGateway.notifyPermissionUpdate(
+      documentId,
+      String(permission.userId),
+      {
+        role: permission.role,
+        canRead: permission.canRead,
+        canWrite: permission.canWrite,
+        canDelete: permission.canDelete,
+        canShare: permission.canShare,
+      },
     );
 
     return {

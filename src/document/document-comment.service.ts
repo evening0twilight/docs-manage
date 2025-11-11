@@ -28,53 +28,75 @@ export class DocumentCommentService {
     userId: number,
     createCommentDto: CreateCommentDto,
   ) {
-    // 验证文档是否存在
-    const document = await this.documentRepository.findOne({
-      where: { id: documentId, isDeleted: false },
-    });
+    try {
+      console.log('[CommentService] 开始创建评论');
+      console.log('[CommentService] documentId:', documentId);
+      console.log('[CommentService] userId:', userId);
+      console.log('[CommentService] createCommentDto:', createCommentDto);
 
-    if (!document) {
-      throw new NotFoundException('文档不存在');
-    }
-
-    // 验证位置范围
-    if (createCommentDto.startPos > createCommentDto.endPos) {
-      throw new BadRequestException('起始位置不能大于结束位置');
-    }
-
-    // 如果是回复，验证父评论是否存在
-    if (createCommentDto.parentId) {
-      const parentComment = await this.commentRepository.findOne({
-        where: {
-          id: createCommentDto.parentId,
-          documentId,
-          deletedAt: IsNull(),
-        },
+      // 验证文档是否存在
+      const document = await this.documentRepository.findOne({
+        where: { id: documentId, isDeleted: false },
       });
 
-      if (!parentComment) {
-        throw new NotFoundException('父评论不存在');
+      console.log('[CommentService] 文档查询结果:', document ? `存在 (id: ${document.id})` : '不存在');
+
+      if (!document) {
+        throw new NotFoundException('文档不存在');
       }
 
-      // 更新父评论的回复计数
-      await this.commentRepository.increment(
-        { id: createCommentDto.parentId },
-        'replyCount',
-        1,
-      );
+      // 验证位置范围
+      if (createCommentDto.startPos > createCommentDto.endPos) {
+        throw new BadRequestException('起始位置不能大于结束位置');
+      }
+
+      // 如果是回复，验证父评论是否存在
+      if (createCommentDto.parentId) {
+        console.log('[CommentService] 这是一个回复, parentId:', createCommentDto.parentId);
+        
+        const parentComment = await this.commentRepository.findOne({
+          where: {
+            id: createCommentDto.parentId,
+            documentId,
+            deletedAt: IsNull(),
+          },
+        });
+
+        if (!parentComment) {
+          throw new NotFoundException('父评论不存在');
+        }
+
+        // 更新父评论的回复计数
+        await this.commentRepository.increment(
+          { id: createCommentDto.parentId },
+          'replyCount',
+          1,
+        );
+      }
+
+      // 创建评论
+      console.log('[CommentService] 准备创建评论对象');
+      const comment = this.commentRepository.create({
+        documentId,
+        userId,
+        ...createCommentDto,
+      });
+
+      console.log('[CommentService] 评论对象创建成功，准备保存');
+      const savedComment = await this.commentRepository.save(comment);
+      console.log('[CommentService] 评论保存成功, id:', savedComment.id);
+
+      // 返回带用户信息的评论
+      console.log('[CommentService] 查询完整评论信息');
+      const fullComment = await this.findOneWithUser(savedComment.id);
+      console.log('[CommentService] 评论创建完成');
+      
+      return fullComment;
+    } catch (error) {
+      console.error('[CommentService] 创建评论失败:', error);
+      console.error('[CommentService] 错误堆栈:', error.stack);
+      throw error;
     }
-
-    // 创建评论
-    const comment = this.commentRepository.create({
-      documentId,
-      userId,
-      ...createCommentDto,
-    });
-
-    const savedComment = await this.commentRepository.save(comment);
-
-    // 返回带用户信息的评论
-    return this.findOneWithUser(savedComment.id);
   }
 
   /**
