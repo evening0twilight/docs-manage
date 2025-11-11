@@ -82,6 +82,10 @@ export class FileSystemItemEntity {
   @Column({ default: false })
   isDeleted: boolean;
 
+  // 协同编辑开关（仅文档使用）
+  @Column({ name: 'is_collaboration_enabled', default: false })
+  isCollaborationEnabled: boolean;
+
   // === 关联关系 ===
   // 创建者关联
   @ManyToOne(() => UserEntity, (user) => user.fileSystemItems, {

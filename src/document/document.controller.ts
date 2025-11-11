@@ -732,7 +732,7 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '删除文档',
-    description: '删除指定ID的文档。需要JWT认证，只有文档创建者才能删除。',
+    description: '删除指定ID的文档。需要JWT认证,只有文档创建者才能删除。',
   })
   @ApiParam({
     name: 'id',
@@ -764,6 +764,65 @@ export class DocumentController {
       return new ResponseDto(
         false,
         '文档删除失败',
+        undefined,
+        String(error?.message || '未知错误'),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Put(':id/collaboration-toggle')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '切换文档协同编辑开关',
+    description: '开启或关闭文档协同编辑。仅文档所有者可操作。关闭时所有非owner用户权限自动降为viewer。',
+  })
+  @ApiParam({
+    name: 'id',
+    description: '文档ID',
+    example: 1,
+    type: 'number',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean', description: '是否启用协同编辑' },
+      },
+      required: ['enabled'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '协同开关切换成功',
+  })
+  @ApiResponse({ status: 401, description: '未授权访问' })
+  @ApiResponse({ status: 403, description: '仅文档所有者可操作' })
+  @ApiResponse({ status: 404, description: '文档不存在' })
+  async toggleCollaboration(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('enabled') enabled: boolean,
+    @Request() req: any,
+  ) {
+    try {
+      const currentUserId = Number(req.user.sub);
+      const result = await this.documentService.toggleCollaboration(
+        id,
+        enabled,
+        currentUserId,
+      );
+      return new ResponseDto(
+        true,
+        enabled ? '协同编辑已开启' : '协同编辑已关闭',
+        result,
+        undefined,
+        HttpStatus.OK,
+      );
+    } catch (error: any) {
+      return new ResponseDto(
+        false,
+        '操作失败',
         undefined,
         String(error?.message || '未知错误'),
         HttpStatus.BAD_REQUEST,
