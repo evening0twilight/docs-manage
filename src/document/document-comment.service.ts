@@ -39,7 +39,10 @@ export class DocumentCommentService {
         where: { id: documentId, isDeleted: false },
       });
 
-      console.log('[CommentService] 文档查询结果:', document ? `存在 (id: ${document.id})` : '不存在');
+      console.log(
+        '[CommentService] 文档查询结果:',
+        document ? `存在 (id: ${document.id})` : '不存在',
+      );
 
       if (!document) {
         throw new NotFoundException('文档不存在');
@@ -52,8 +55,11 @@ export class DocumentCommentService {
 
       // 如果是回复，验证父评论是否存在
       if (createCommentDto.parentId) {
-        console.log('[CommentService] 这是一个回复, parentId:', createCommentDto.parentId);
-        
+        console.log(
+          '[CommentService] 这是一个回复, parentId:',
+          createCommentDto.parentId,
+        );
+
         const parentComment = await this.commentRepository.findOne({
           where: {
             id: createCommentDto.parentId,
@@ -90,7 +96,7 @@ export class DocumentCommentService {
       console.log('[CommentService] 查询完整评论信息');
       const fullComment = await this.findOneWithUser(savedComment.id);
       console.log('[CommentService] 评论创建完成');
-      
+
       return fullComment;
     } catch (error) {
       console.error('[CommentService] 创建评论失败:', error);

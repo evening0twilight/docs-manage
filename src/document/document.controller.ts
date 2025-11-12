@@ -776,7 +776,8 @@ export class DocumentController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '切换文档协同编辑开关',
-    description: '开启或关闭文档协同编辑。仅文档所有者可操作。关闭时所有非owner用户权限自动降为viewer。',
+    description:
+      '开启或关闭文档协同编辑。仅文档所有者可操作。关闭时所有非owner用户权限自动降为viewer。',
   })
   @ApiParam({
     name: 'id',

@@ -46,18 +46,21 @@ export class DocumentCommentController {
     try {
       console.log('[创建评论] 开始处理评论创建请求');
       console.log('[创建评论] documentId:', documentId);
-      console.log('[创建评论] createCommentDto:', JSON.stringify(createCommentDto));
+      console.log(
+        '[创建评论] createCommentDto:',
+        JSON.stringify(createCommentDto),
+      );
       console.log('[创建评论] req.user:', req.user);
-      
+
       const userId: number = req.user?.id || req.user?.sub;
-      
+
       if (!userId) {
         console.error('[创建评论] 错误: 无法获取用户ID', req.user);
         throw new Error('无法获取用户ID，请检查JWT认证');
       }
-      
+
       console.log('[创建评论] userId:', userId);
-      
+
       const comment = await this.commentService.create(
         documentId,
         userId,
