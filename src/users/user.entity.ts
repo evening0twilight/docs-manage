@@ -73,6 +73,9 @@ export class UserEntity {
   @Column({ nullable: true, length: 500 })
   refreshToken?: string;
 
+  @Column({ default: 0, comment: 'Token版本号,用于单点登录强制失效旧token' })
+  tokenVersion: number;
+
   @Column({ default: true, comment: '账号是否激活' })
   isActive: boolean;
 

@@ -51,13 +51,23 @@ export class UsersService {
       throw new HttpException('密码错误', HttpStatus.UNAUTHORIZED);
     }
 
-    // 更新最后登录时间
+    // ⭐ 单点登录: 增加tokenVersion使旧token失效
     await this.userRepository.update(user.id, {
       lastLoginAt: new Date(),
+      tokenVersion: user.tokenVersion + 1,
     });
 
+    // 重新获取用户(包含新的tokenVersion)
+    const updatedUser = await this.userRepository.findOne({
+      where: { id: user.id },
+    });
+
+    if (!updatedUser) {
+      throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+    }
+
     // 生成tokens
-    return this.generateTokens(user);
+    return this.generateTokens(updatedUser);
   }
 
   // 刷新token
@@ -202,12 +212,13 @@ export class UsersService {
 
   // 生成双token
   private async generateTokens(user: UserEntity): Promise<AuthResponse> {
-    // 生成访问token (15分钟)
+    // 生成访问token (15分钟) - 包含tokenVersion
     const accessToken = this.jwtService.sign(
       {
         sub: user.id,
         username: user.username,
         email: user.email,
+        tokenVersion: user.tokenVersion, // ⭐ 添加tokenVersion用于验证
       },
       {
         secret: this.configService.get<string>('JWT_SECRET'),
@@ -217,7 +228,7 @@ export class UsersService {
 
     // 生成刷新token (7天)
     const refreshToken = this.jwtService.sign(
-      { sub: user.id },
+      { sub: user.id, tokenVersion: user.tokenVersion }, // ⭐ 添加tokenVersion
       {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: this.configService.get<string>(
