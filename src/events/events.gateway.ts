@@ -17,6 +17,7 @@ interface UserInfo {
   userId: string;
   username: string;
   avatar?: string;
+  color?: string; // 光标颜色
 }
 
 interface DocumentRoom {
@@ -430,6 +431,44 @@ export class EventsGateway
 
     this.logger.debug(
       `文档 ${documentId} 聊天: ${userInfo.username}: ${message}`,
+    );
+  }
+
+  /**
+   * 更新光标颜色
+   */
+  @SubscribeMessage('update-cursor-color')
+  handleUpdateCursorColor(
+    @MessageBody() data: { color: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userInfo = this.connectedUsers.get(client.id);
+
+    if (!userInfo) {
+      client.emit('error', { message: '请先进行身份认证' });
+      return;
+    }
+
+    // 更新用户颜色
+    userInfo.color = data.color;
+    this.connectedUsers.set(client.id, userInfo);
+
+    // 广播给所有文档房间（用户可能在多个房间）
+    this.documentRooms.forEach((room, documentId) => {
+      if (room.users.has(client.id)) {
+        // 更新房间中的用户信息
+        room.users.set(client.id, userInfo);
+
+        // 广播给房间内所有用户
+        this.server.to(documentId).emit('user-color-updated', {
+          userId: userInfo.userId,
+          color: data.color,
+        });
+      }
+    });
+
+    this.logger.debug(
+      `用户 ${userInfo.username} 更新光标颜色为: ${data.color}`,
     );
   }
 
