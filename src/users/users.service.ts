@@ -90,9 +90,20 @@ export class UsersService {
         );
       }
 
+      // ⭐ 单点登录验证: 检查tokenVersion是否匹配
+      if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+        throw new HttpException(
+          '账号已在其他地方登录,若非本人操作,请立刻修改密码',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
       // 生成新的tokens
       return this.generateTokens(user);
-    } catch {
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException('Invalid refresh token', HttpStatus.UNAUTHORIZED);
     }
   }
@@ -206,8 +217,11 @@ export class UsersService {
     // 加密新密码
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // 更新密码
-    await this.userRepository.update(userId, { password: hashedPassword });
+    // 更新密码并递增tokenVersion,使所有已发放的token失效
+    await this.userRepository.update(userId, { 
+      password: hashedPassword,
+      tokenVersion: () => 'tokenVersion + 1'
+    });
   }
 
   // 生成双token
