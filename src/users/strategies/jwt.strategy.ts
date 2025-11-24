@@ -37,8 +37,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('用户不存在');
     }
 
-    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
-      throw new UnauthorizedException('账号已在其他地方登录，若非本人操作，请立刻修改密码');
+    if (
+      payload.tokenVersion !== undefined &&
+      user.tokenVersion !== payload.tokenVersion
+    ) {
+      throw new UnauthorizedException(
+        '账号已在其他地方登录，若非本人操作，请立刻修改密码',
+      );
     }
 
     return {

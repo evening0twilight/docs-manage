@@ -63,6 +63,19 @@ export class EventsGateway
   private documentRooms: Map<string, DocumentRoom> = new Map(); // documentId -> DocumentRoom
   private userColors: Map<string, string> = new Map(); // userId -> color
   private userSessions: Map<string, string> = new Map(); // userId -> socketId (最新登录)
+  private colorPool: string[] = [
+    '#FF6B6B',
+    '#4ECDC4',
+    '#45B7D1',
+    '#FFA07A',
+    '#98D8C8',
+    '#F7DC6F',
+    '#BB8FCE',
+    '#85C1E2',
+    '#F8B739',
+    '#52B788',
+  ];
+  private usedColors: Set<string> = new Set(); // 跟踪已使用的颜色
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   afterInit(_server: Server) {
@@ -108,6 +121,14 @@ export class EventsGateway
       // 清理用户会话(仅当是当前socketId时)
       if (this.userSessions.get(userInfo.userId) === client.id) {
         this.userSessions.delete(userInfo.userId);
+        
+        // 释放用户颜色
+        const color = this.userColors.get(userInfo.userId);
+        if (color) {
+          this.usedColors.delete(color);
+          this.userColors.delete(userInfo.userId);
+          this.logger.log(`释放用户 ${userInfo.username} 的颜色: ${color}`);
+        }
       }
 
       this.connectedUsers.delete(client.id);
@@ -159,9 +180,7 @@ export class EventsGateway
     this.userSessions.set(userId, client.id);
 
     // 为用户分配唯一颜色（用于光标显示）
-    if (!this.userColors.has(userId)) {
-      this.userColors.set(userId, this.generateRandomColor());
-    }
+    this.assignColorToUser(userId);
 
     this.logger.log(`用户 ${username} 已认证 (socketId: ${client.id})`);
 
@@ -207,6 +226,13 @@ export class EventsGateway
     const room = this.documentRooms.get(documentId)!;
     room.users.set(client.id, userInfo);
 
+    this.logger.log(
+      `用户 ${userInfo.username} 加入文档 ${documentId} (socketId: ${client.id})`,
+    );
+    this.logger.log(
+      `当前文档房间共 ${room.users.size} 人: ${Array.from(room.users.values()).map(u => u.username).join(', ')}`,
+    );
+
     // 通知房间内其他用户
     client.to(documentId).emit('user-joined', {
       userId: userInfo.userId,
@@ -217,20 +243,22 @@ export class EventsGateway
       documentId,
     });
 
+    // 返回当前房间内的所有用户
+    const usersInRoom = Array.from(room.users.values()).map((user) => ({
+      ...user,
+      color: this.userColors.get(user.userId),
+    }));
+
     this.logger.log(
-      `用户 ${userInfo.username} 加入文档 ${documentId} (socketId: ${client.id})`,
+      `返回joined-document事件,包含 ${usersInRoom.length} 个用户: ${JSON.stringify(usersInRoom.map(u => ({ username: u.username, userId: u.userId, color: u.color })))}`,
     );
 
-    // 返回当前房间内的所有用户
     return {
       event: 'joined-document',
       data: {
         success: true,
         documentId,
-        users: Array.from(room.users.values()).map((user) => ({
-          ...user,
-          color: this.userColors.get(user.userId),
-        })),
+        users: usersInRoom,
       },
     };
   }
@@ -286,7 +314,7 @@ export class EventsGateway
    */
   @SubscribeMessage('document-edit')
   handleDocumentEdit(
-    @MessageBody() data: DocumentEdit & { documentId: string },
+    @MessageBody() data: DocumentEdit & { documentId: string; from?: number; to?: number },
     @ConnectedSocket() client: Socket,
   ) {
     const userInfo = this.connectedUsers.get(client.id);
@@ -296,7 +324,7 @@ export class EventsGateway
       return;
     }
 
-    const { documentId, type, content, position } = data;
+    const { documentId, type, content, position, from, to } = data;
 
     // 广播给房间内其他用户（不包括发送者）
     client.to(documentId).emit('document-edit', {
@@ -305,12 +333,14 @@ export class EventsGateway
       type,
       content,
       position,
+      from,
+      to,
       timestamp: Date.now(),
       socketId: client.id,
     });
 
     this.logger.debug(
-      `文档 ${documentId} 编辑: ${type} by ${userInfo.username}`,
+      `文档 ${documentId} 编辑: ${type} by ${userInfo.username}, from=${from}, to=${to}`,
     );
   }
 
@@ -334,14 +364,24 @@ export class EventsGateway
 
     const { documentId, position } = data;
 
+    this.logger.debug(
+      `收到光标位置: ${userInfo.username} (${userInfo.userId}) - line: ${position.line}, col: ${position.column}`,
+    );
+
     // 广播给房间内其他用户
-    client.to(documentId).emit('cursor-position', {
+    const broadcastData = {
       userId: userInfo.userId,
       username: userInfo.username,
       position,
       color: this.userColors.get(userInfo.userId),
       socketId: client.id,
-    });
+    };
+
+    this.logger.debug(
+      `广播光标位置到文档房间 ${documentId}: ${JSON.stringify(broadcastData)}`,
+    );
+
+    client.to(documentId).emit('cursor-position', broadcastData);
   }
 
   /**
@@ -543,21 +583,38 @@ export class EventsGateway
   }
 
   /**
+   * 分配不重复的颜色给用户
+   */
+  private assignColorToUser(userId: string): string {
+    // 如果用户已经有颜色,直接返回
+    if (this.userColors.has(userId)) {
+      return this.userColors.get(userId)!;
+    }
+
+    // 找到未使用的颜色
+    let color: string;
+    const availableColors = this.colorPool.filter(c => !this.usedColors.has(c));
+
+    if (availableColors.length > 0) {
+      // 有可用颜色,从中选一个
+      color = availableColors[Math.floor(Math.random() * availableColors.length)];
+    } else {
+      // 所有颜色都在使用中,循环使用(从池中随机选)
+      color = this.colorPool[Math.floor(Math.random() * this.colorPool.length)];
+    }
+
+    this.userColors.set(userId, color);
+    this.usedColors.add(color);
+
+    this.logger.log(`为用户 ${userId} 分配颜色: ${color}`);
+    return color;
+  }
+
+  /**
    * 生成随机颜色（用于光标显示）
+   * @deprecated 使用 assignColorToUser 代替,以确保颜色不重复
    */
   private generateRandomColor(): string {
-    const colors = [
-      '#FF6B6B',
-      '#4ECDC4',
-      '#45B7D1',
-      '#FFA07A',
-      '#98D8C8',
-      '#F7DC6F',
-      '#BB8FCE',
-      '#85C1E2',
-      '#F8B739',
-      '#52B788',
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
+    return this.assignColorToUser('temp-' + Date.now());
   }
 }
