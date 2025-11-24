@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -14,7 +14,7 @@ import { UploadModule } from '../common/upload/upload.module';
   imports: [
     TypeOrmModule.forFeature([UserEntity]),
     PassportModule,
-    UploadModule,
+    forwardRef(() => UploadModule),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -27,6 +27,6 @@ import { UploadModule } from '../common/upload/upload.module';
   ],
   controllers: [UsersController],
   providers: [UsersService, JwtAuthGuard, JwtStrategy],
-  exports: [UsersService, JwtAuthGuard],
+  exports: [UsersService, JwtAuthGuard, TypeOrmModule],
 })
 export class UsersModule {}

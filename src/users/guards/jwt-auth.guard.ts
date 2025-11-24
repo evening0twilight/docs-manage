@@ -32,16 +32,17 @@ export class JwtAuthGuard implements CanActivate {
         secret: process.env.JWT_SECRET || 'secret',
       });
 
-      // ⭐ 验证tokenVersion - 单点登录机制
-      if (payload.tokenVersion !== undefined) {
-        const user = await this.userRepository.findOne({
-          where: { id: payload.sub },
-          select: ['id', 'tokenVersion'],
-        });
+      // 验证 tokenVersion
+      const user = await this.userRepository.findOne({
+        where: { id: payload.sub },
+      });
 
-        if (!user || user.tokenVersion !== payload.tokenVersion) {
-          throw new UnauthorizedException('Token已失效,请重新登录');
-        }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      if (user.tokenVersion !== payload.tokenVersion) {
+        throw new UnauthorizedException('账号已在其他地方登录,若非本人操作,请立刻修改密码');
       }
 
       request['user'] = payload;
@@ -53,9 +54,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return true;
-  }
-
-  private extractTokenFromHeader(request: Request): string | undefined {
+  }  private extractTokenFromHeader(request: Request): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }
