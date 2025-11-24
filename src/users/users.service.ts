@@ -51,7 +51,7 @@ export class UsersService {
       throw new HttpException('密码错误', HttpStatus.UNAUTHORIZED);
     }
 
-    // ⭐ 单点登录: 增加tokenVersion使旧token失效
+    // 单点登录: 增加tokenVersion使旧token失效
     await this.userRepository.update(user.id, {
       lastLoginAt: new Date(),
       tokenVersion: user.tokenVersion + 1,
@@ -91,7 +91,10 @@ export class UsersService {
       }
 
       // ⭐ 单点登录验证: 检查tokenVersion是否匹配
-      if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      if (
+        payload.tokenVersion !== undefined &&
+        user.tokenVersion !== payload.tokenVersion
+      ) {
         throw new HttpException(
           '账号已在其他地方登录,若非本人操作,请立刻修改密码',
           HttpStatus.UNAUTHORIZED,
@@ -218,9 +221,9 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // 更新密码并递增tokenVersion,使所有已发放的token失效
-    await this.userRepository.update(userId, { 
+    await this.userRepository.update(userId, {
       password: hashedPassword,
-      tokenVersion: () => 'tokenVersion + 1'
+      tokenVersion: () => 'tokenVersion + 1',
     });
   }
 
@@ -392,26 +395,26 @@ export class UsersService {
       );
     }
 
-    // 3. 检查邮箱修改冷却期（24小时）- 已禁用，测试阶段
-    // if (user.lastEmailChangedAt) {
-    //   const cooldownHours = 24;
-    //   const cooldownMs = cooldownHours * 60 * 60 * 1000;
-    //   const timeSinceLastChange =
-    //     Date.now() - user.lastEmailChangedAt.getTime();
+    // 3. 检查邮箱修改冷却期（24小时
+    if (user.lastEmailChangedAt) {
+      const cooldownHours = 24;
+      const cooldownMs = cooldownHours * 60 * 60 * 1000;
+      const timeSinceLastChange =
+        Date.now() - user.lastEmailChangedAt.getTime();
 
-    //   if (timeSinceLastChange < cooldownMs) {
-    //     const remainingHours = Math.ceil(
-    //       (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
-    //     );
-    //     console.warn(
-    //       `[VerifyOldEmail] 用户 ${userId} 在冷却期内，剩余 ${remainingHours} 小时`,
-    //     );
-    //     throw new HttpException(
-    //       `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
-    //       HttpStatus.TOO_MANY_REQUESTS,
-    //     );
-    //   }
-    // }
+      if (timeSinceLastChange < cooldownMs) {
+        const remainingHours = Math.ceil(
+          (cooldownMs - timeSinceLastChange) / (60 * 60 * 1000),
+        );
+        console.warn(
+          `[VerifyOldEmail] 用户 ${userId} 在冷却期内，剩余 ${remainingHours} 小时`,
+        );
+        throw new HttpException(
+          `邮箱修改过于频繁，请在 ${remainingHours} 小时后再试`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
 
     // 4. 验证当前邮箱的验证码
     console.log(`[VerifyOldEmail] 验证当前邮箱 ${currentEmail} 的验证码`);

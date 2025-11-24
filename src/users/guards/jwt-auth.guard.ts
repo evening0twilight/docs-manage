@@ -42,7 +42,9 @@ export class JwtAuthGuard implements CanActivate {
       }
 
       if (user.tokenVersion !== payload.tokenVersion) {
-        throw new UnauthorizedException('账号已在其他地方登录,若非本人操作,请立刻修改密码');
+        throw new UnauthorizedException(
+          '账号已在其他地方登录,若非本人操作,请立刻修改密码',
+        );
       }
 
       request['user'] = payload;
@@ -54,7 +56,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return true;
-  }  private extractTokenFromHeader(request: Request): string | undefined {
+  }
+  private extractTokenFromHeader(request: Request): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }
