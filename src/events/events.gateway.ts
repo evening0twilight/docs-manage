@@ -121,7 +121,7 @@ export class EventsGateway
       // 清理用户会话(仅当是当前socketId时)
       if (this.userSessions.get(userInfo.userId) === client.id) {
         this.userSessions.delete(userInfo.userId);
-        
+
         // 释放用户颜色
         const color = this.userColors.get(userInfo.userId);
         if (color) {
@@ -230,7 +230,9 @@ export class EventsGateway
       `用户 ${userInfo.username} 加入文档 ${documentId} (socketId: ${client.id})`,
     );
     this.logger.log(
-      `当前文档房间共 ${room.users.size} 人: ${Array.from(room.users.values()).map(u => u.username).join(', ')}`,
+      `当前文档房间共 ${room.users.size} 人: ${Array.from(room.users.values())
+        .map((u) => u.username)
+        .join(', ')}`,
     );
 
     // 通知房间内其他用户
@@ -250,7 +252,7 @@ export class EventsGateway
     }));
 
     this.logger.log(
-      `返回joined-document事件,包含 ${usersInRoom.length} 个用户: ${JSON.stringify(usersInRoom.map(u => ({ username: u.username, userId: u.userId, color: u.color })))}`,
+      `返回joined-document事件,包含 ${usersInRoom.length} 个用户: ${JSON.stringify(usersInRoom.map((u) => ({ username: u.username, userId: u.userId, color: u.color })))}`,
     );
 
     return {
@@ -314,7 +316,8 @@ export class EventsGateway
    */
   @SubscribeMessage('document-edit')
   handleDocumentEdit(
-    @MessageBody() data: DocumentEdit & { documentId: string; from?: number; to?: number },
+    @MessageBody()
+    data: DocumentEdit & { documentId: string; from?: number; to?: number },
     @ConnectedSocket() client: Socket,
   ) {
     const userInfo = this.connectedUsers.get(client.id);
@@ -593,11 +596,14 @@ export class EventsGateway
 
     // 找到未使用的颜色
     let color: string;
-    const availableColors = this.colorPool.filter(c => !this.usedColors.has(c));
+    const availableColors = this.colorPool.filter(
+      (c) => !this.usedColors.has(c),
+    );
 
     if (availableColors.length > 0) {
       // 有可用颜色,从中选一个
-      color = availableColors[Math.floor(Math.random() * availableColors.length)];
+      color =
+        availableColors[Math.floor(Math.random() * availableColors.length)];
     } else {
       // 所有颜色都在使用中,循环使用(从池中随机选)
       color = this.colorPool[Math.floor(Math.random() * this.colorPool.length)];
