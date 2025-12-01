@@ -27,6 +27,6 @@ import { UploadModule } from '../common/upload/upload.module';
   ],
   controllers: [UsersController],
   providers: [UsersService, JwtAuthGuard, JwtStrategy],
-  exports: [UsersService, JwtAuthGuard, TypeOrmModule],
+  exports: [UsersService, JwtAuthGuard, JwtModule, TypeOrmModule],
 })
 export class UsersModule {}

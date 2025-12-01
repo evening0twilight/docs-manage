@@ -52,11 +52,24 @@ export const uploadConfig = () => ({
   ],
 });
 
+// AI 配置
+export const aiConfig = () => ({
+  useMock:
+    process.env.AI_USE_MOCK === 'true' || process.env.AI_USE_MOCK === '1',
+  provider: process.env.AI_PROVIDER || 'zhipu', // 'zhipu' 或 'openai'
+  apiKey: process.env.AI_API_KEY || '',
+  apiUrl: process.env.AI_API_URL || '',
+  model: process.env.AI_MODEL || 'glm-4', // 智谱AI默认模型
+  maxTokens: parseInt(process.env.AI_MAX_TOKENS || '2000', 10),
+  temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
+});
+
 // 导出所有配置
 export default {
   database: databaseConfig,
   jwt: jwtConfig,
   app: appConfig,
   upload: uploadConfig,
+  ai: aiConfig,
   envPath: envConfig.path,
 };
