@@ -263,7 +263,7 @@ export class AiService {
   /**
    * 调用真实的AI API（智谱AI或OpenAI）
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
   private async callRealAI(_dto: AIChatRequestDto): Promise<AIResponse> {
     // TODO: 实现真实的API调用
     this.logger.warn('Real AI API not implemented yet');
@@ -288,6 +288,7 @@ export class AiService {
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   private async *callRealAIStream(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _dto: AIChatRequestDto,
   ): AsyncGenerator<string> {
     // TODO: 实现真实的流式API调用

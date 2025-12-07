@@ -20,7 +20,7 @@ export class WsJwtGuard implements CanActivate {
       // 将用户信息附加到 socket 对象上
       client.data.user = payload;
       return true;
-    } catch (error) {
+    } catch {
       client.disconnect();
       return false;
     }

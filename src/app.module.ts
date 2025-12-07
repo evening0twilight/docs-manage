@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DocumentModule } from './document/document.module';
 import { LogsModule } from './logs/logs.module';
 import { MailModule } from './common/mail/mail.module';
@@ -21,6 +22,7 @@ import { APP_PIPE } from '@nestjs/core';
       envFilePath: [envConfig.path],
       // validate, // 暂时禁用验证
     }),
+    ScheduleModule.forRoot(), // 启用定时任务模块
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
