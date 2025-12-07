@@ -53,7 +53,7 @@ export class DocumentDailyVersionService {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     yesterday.setHours(0, 0, 0, 0); // 昨天的开始时间
-    
+
     const today = new Date(now);
     today.setHours(0, 0, 0, 0); // 今天的开始时间
 
@@ -83,9 +83,7 @@ export class DocumentDailyVersionService {
           .getOne();
 
         if (yesterdayVersion) {
-          this.logger.debug(
-            `⏭️  文档 ${doc.id} 昨天已有自动版本,跳过`,
-          );
+          this.logger.debug(`⏭️  文档 ${doc.id} 昨天已有自动版本,跳过`);
           continue;
         }
 
@@ -105,9 +103,7 @@ export class DocumentDailyVersionService {
         });
 
         if (latestVersion && latestVersion.contentHash === contentHash) {
-          this.logger.debug(
-            `⏭️  文档 ${doc.id} 内容未变化,跳过`,
-          );
+          this.logger.debug(`⏭️  文档 ${doc.id} 内容未变化,跳过`);
           continue;
         }
 
