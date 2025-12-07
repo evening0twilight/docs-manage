@@ -148,4 +148,3 @@ export class DocumentVersionController {
     return await this.dailyVersionService.triggerManually();
   }
 }
-}
