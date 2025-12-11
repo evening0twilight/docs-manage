@@ -317,7 +317,7 @@ export class EventsGateway
   @SubscribeMessage('document-edit')
   handleDocumentEdit(
     @MessageBody()
-    data: DocumentEdit & { documentId: string; from?: number; to?: number },
+    data: DocumentEdit & { documentId: string; from?: number; to?: number; openStart?: number; openEnd?: number },
     @ConnectedSocket() client: Socket,
   ) {
     const userInfo = this.connectedUsers.get(client.id);
@@ -327,7 +327,7 @@ export class EventsGateway
       return;
     }
 
-    const { documentId, type, content, position, from, to } = data;
+    const { documentId, type, content, position, from, to, openStart, openEnd } = data;
 
     // 广播给房间内其他用户（不包括发送者）
     client.to(documentId).emit('document-edit', {
@@ -338,12 +338,14 @@ export class EventsGateway
       position,
       from,
       to,
+      openStart,
+      openEnd,
       timestamp: Date.now(),
       socketId: client.id,
     });
 
     this.logger.debug(
-      `文档 ${documentId} 编辑: ${type} by ${userInfo.username}, from=${from}, to=${to}`,
+      `文档 ${documentId} 编辑: ${type} by ${userInfo.username}, from=${from}, to=${to}, openStart=${openStart}, openEnd=${openEnd}`,
     );
   }
 
