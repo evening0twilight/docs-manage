@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { FileSystemItemEntity } from './document.entity';
 import { UserEntity } from '../users/user.entity';
@@ -17,6 +18,8 @@ export enum PermissionRole {
 }
 
 @Entity('document_permissions')
+// 权限校验热路径:DocumentAccessService 每次按 (documentId, userId) 查询
+@Index(['documentId', 'userId'])
 export class DocumentPermission {
   @PrimaryGeneratedColumn('uuid')
   id: string;

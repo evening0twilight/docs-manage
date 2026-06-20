@@ -6,11 +6,15 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { FileSystemItemEntity } from './document.entity';
 import { UserEntity } from '../users/user.entity';
 
 @Entity('document_comments')
+// 评论按文档 + 未删除查询;回复按父评论查询
+@Index(['documentId', 'deletedAt'])
+@Index(['parentId'])
 export class DocumentComment {
   @PrimaryGeneratedColumn()
   id: number;

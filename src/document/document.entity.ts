@@ -8,6 +8,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { UserEntity } from '../users/user.entity';
 import { DocumentPermission } from './document-permission.entity';
@@ -28,6 +29,9 @@ export enum DocumentType {
 }
 
 @Entity('file_system_items')
+// 列表/树/目录查询常按创建者 + 是否删除 + 父级过滤
+@Index(['creatorId', 'isDeleted'])
+@Index(['parentId'])
 export class FileSystemItemEntity {
   @PrimaryGeneratedColumn()
   id: number;
