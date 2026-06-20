@@ -7,6 +7,8 @@ import { existsSync, readdirSync } from 'fs';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
+import helmet from 'helmet';
+import * as compression from 'compression';
 import { corsOrigin } from './common/cors.util';
 import 'reflect-metadata';
 
@@ -128,6 +130,10 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   await setupCrypto(); // 确保 crypto 在应用启动前设置好
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // 安全响应头(关闭 CSP 以免影响 Swagger UI / 静态页) + 响应压缩
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(compression());
 
   // 🚀 运行数据库迁移
   await runMigrations(app);

@@ -13,7 +13,8 @@ import { EventsModule } from './events/events.module';
 import { AiModule } from './ai/ai.module';
 import { envConfig } from './config/env';
 import { validate } from './config/validation';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_PIPE, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -23,6 +24,8 @@ import { APP_PIPE } from '@nestjs/core';
       validate, // 启动时校验必填环境变量(含 JWT_SECRET / JWT_REFRESH_SECRET),缺失则 fail-fast
     }),
     ScheduleModule.forRoot(), // 启用定时任务模块
+    // 全局限流:默认每 IP 60s 内最多 200 次请求(登录等敏感端点单独加严)
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 200 }]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -63,6 +66,11 @@ import { APP_PIPE } from '@nestjs/core';
   controllers: [AppController],
   providers: [
     AppService,
+    // 全局限流守卫
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     // 这里加上了全局验证管道配置，用于全局验证数据
     {
       provide: APP_PIPE,

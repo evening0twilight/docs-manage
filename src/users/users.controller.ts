@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { LoginDto, AuthResponse, RefreshTokenDto } from './dto/auth.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -52,6 +53,8 @@ export class UsersController {
   ) {}
 
   @Post('login')
+  // 防暴力破解:每 IP 60s 内最多 5 次登录尝试
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用户登录', description: '使用用户名和密码登录' })
   @ApiBody({ type: LoginDto, description: '用户登录信息' })
@@ -218,6 +221,8 @@ export class UsersController {
   }
 
   @Post('send-verification-code')
+  // 防邮件轰炸:每 IP 60s 内最多 3 次发码请求
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '发送验证码',
