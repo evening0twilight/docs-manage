@@ -27,15 +27,23 @@ export class WsJwtGuard implements CanActivate {
   }
 
   private extractToken(client: Socket): string | null {
-    // 从握手认证头中获取 token
-    const authHeader = client.handshake?.headers?.authorization;
-    if (authHeader) {
-      const [type, token] = authHeader.split(' ');
-      return type === 'Bearer' ? token : null;
+    const stripBearer = (v: string): string =>
+      v.startsWith('Bearer ') ? v.slice(7) : v;
+
+    // 1) socket.io 的 auth 负载:io(url, { auth: { token: 'Bearer xxx' } })(前端使用此方式)
+    const authToken = client.handshake?.auth?.token as unknown;
+    if (typeof authToken === 'string' && authToken) {
+      return stripBearer(authToken);
     }
 
-    // 或从查询参数中获取
+    // 2) 从握手认证头中获取 token
+    const authHeader = client.handshake?.headers?.authorization;
+    if (typeof authHeader === 'string' && authHeader) {
+      return stripBearer(authHeader);
+    }
+
+    // 3) 或从查询参数中获取
     const token = client.handshake?.query?.token;
-    return typeof token === 'string' ? token : null;
+    return typeof token === 'string' && token ? stripBearer(token) : null;
   }
 }

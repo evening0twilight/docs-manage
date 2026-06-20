@@ -10,8 +10,9 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-// import { UseGuards } from '@nestjs/common'; // 如果需要使用守卫再取消注释
-// import { WsJwtGuard } from './guards/ws-jwt.guard'; // 如果需要使用守卫再取消注释
+import { JwtService } from '@nestjs/jwt';
+import { corsOrigin } from '../common/cors.util';
+import { JwtPayload } from '../users/strategies/jwt.strategy';
 
 interface UserInfo {
   userId: string;
@@ -25,13 +26,6 @@ interface DocumentRoom {
   users: Map<string, UserInfo>; // socketId -> UserInfo
 }
 
-// interface CursorPosition {  // 暂未使用,需要时取消注释
-//   userId: string;
-//   username: string;
-//   position: { line: number; column: number };
-//   color: string;
-// }
-
 interface DocumentEdit {
   userId: string;
   username: string;
@@ -43,11 +37,8 @@ interface DocumentEdit {
 
 @WebSocketGateway({
   cors: {
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'http://localhost:5173',
-      'https://onespecial.me',
-    ],
+    // 允许的来源由环境变量 CORS_ORIGINS 配置,见 src/common/cors.util.ts
+    origin: corsOrigin,
     credentials: true,
   },
   namespace: '/ws',
@@ -77,21 +68,72 @@ export class EventsGateway
   ];
   private usedColors: Set<string> = new Set(); // 跟踪已使用的颜色
 
+  constructor(private readonly jwtService: JwtService) {}
+
+  /**
+   * 从握手信息中提取 JWT
+   * 支持:socket.io 的 auth.token(前端使用)、Authorization 头、query 参数
+   */
+  private extractToken(client: Socket): string | null {
+    const stripBearer = (v: string): string =>
+      v.startsWith('Bearer ') ? v.slice(7) : v;
+
+    // 1) 前端使用 io(url, { auth: { token: 'Bearer xxx' } })
+    const authToken = client.handshake?.auth?.token as unknown;
+    if (typeof authToken === 'string' && authToken) {
+      return stripBearer(authToken);
+    }
+
+    // 2) Authorization 请求头
+    const header = client.handshake?.headers?.authorization;
+    if (typeof header === 'string' && header) {
+      return stripBearer(header);
+    }
+
+    // 3) query 参数 ?token=xxx
+    const queryToken = client.handshake?.query?.token;
+    if (typeof queryToken === 'string' && queryToken) {
+      return stripBearer(queryToken);
+    }
+
+    return null;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   afterInit(_server: Server) {
     // 使用 _server 前缀表示参数未使用但是接口要求
     this.logger.log('WebSocket Gateway 初始化完成');
   }
 
-  handleConnection(client: Socket) {
-    this.logger.log(`客户端连接: ${client.id}`);
+  async handleConnection(client: Socket) {
+    // 连接即校验 JWT:无有效令牌的连接会被直接拒绝,从根本上挡住未授权访问
+    const token = this.extractToken(client);
+    if (!token) {
+      this.logger.warn(`客户端 ${client.id} 未提供认证令牌,拒绝连接`);
+      client.emit('error', { message: '未提供认证令牌' });
+      client.disconnect(true);
+      return;
+    }
 
-    // 发送连接成功消息
-    client.emit('connected', {
-      message: 'WebSocket 连接成功',
-      socketId: client.id,
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+      // 将「经服务端验证」的身份附加到 socket 上,后续一律以此为准
+      client.data.user = payload;
+      this.logger.log(
+        `客户端连接并通过认证: ${client.id} (userId: ${payload.sub}, username: ${payload.username})`,
+      );
+
+      // 发送连接成功消息
+      client.emit('connected', {
+        message: 'WebSocket 连接成功',
+        socketId: client.id,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      this.logger.warn(`客户端 ${client.id} 令牌无效或已过期,拒绝连接`);
+      client.emit('error', { message: '认证令牌无效或已过期' });
+      client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -131,13 +173,15 @@ export class EventsGateway
         }
       }
 
-      this.connectedUsers.delete(client.id);
       this.logger.log(
         `用户 ${userInfo.username} 断开连接 (socketId: ${client.id})`,
       );
     } else {
       this.logger.log(`客户端断开连接: ${client.id}`);
     }
+
+    // 无论是否认证成功,都清理连接级状态,避免残留僵尸连接
+    this.connectedUsers.delete(client.id);
   }
 
   /**
@@ -145,10 +189,20 @@ export class EventsGateway
    */
   @SubscribeMessage('authenticate')
   handleAuthenticate(
-    @MessageBody() data: { userId: string; username: string; avatar?: string },
+    @MessageBody() data: { avatar?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const { userId, username, avatar } = data;
+    // 身份只信任连接时由服务端验证过的 JWT,绝不采用客户端自报的 userId/username
+    const payload = client.data.user as JwtPayload | undefined;
+    if (!payload) {
+      client.emit('error', { message: '未认证的连接' });
+      client.disconnect(true);
+      return;
+    }
+
+    const userId = String(payload.sub);
+    const username = payload.username;
+    const avatar = data?.avatar; // 头像仅作展示用途,允许由客户端提供
     const userInfo: UserInfo = { userId, username, avatar };
 
     // 检查该用户是否已在其他地方登录
@@ -317,7 +371,13 @@ export class EventsGateway
   @SubscribeMessage('document-edit')
   handleDocumentEdit(
     @MessageBody()
-    data: DocumentEdit & { documentId: string; from?: number; to?: number; openStart?: number; openEnd?: number },
+    data: DocumentEdit & {
+      documentId: string;
+      from?: number;
+      to?: number;
+      openStart?: number;
+      openEnd?: number;
+    },
     @ConnectedSocket() client: Socket,
   ) {
     const userInfo = this.connectedUsers.get(client.id);
@@ -327,7 +387,16 @@ export class EventsGateway
       return;
     }
 
-    const { documentId, type, content, position, from, to, openStart, openEnd } = data;
+    const {
+      documentId,
+      type,
+      content,
+      position,
+      from,
+      to,
+      openStart,
+      openEnd,
+    } = data;
 
     // 广播给房间内其他用户（不包括发送者）
     client.to(documentId).emit('document-edit', {
@@ -616,13 +685,5 @@ export class EventsGateway
 
     this.logger.log(`为用户 ${userId} 分配颜色: ${color}`);
     return color;
-  }
-
-  /**
-   * 生成随机颜色（用于光标显示）
-   * @deprecated 使用 assignColorToUser 代替,以确保颜色不重复
-   */
-  private generateRandomColor(): string {
-    return this.assignColorToUser('temp-' + Date.now());
   }
 }
