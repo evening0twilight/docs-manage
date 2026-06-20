@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -6,6 +7,7 @@ import { existsSync, readdirSync } from 'fs';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
+import { corsOrigin } from './common/cors.util';
 import 'reflect-metadata';
 
 // 数据库迁移函数
@@ -123,20 +125,16 @@ function setupSwagger(app: NestExpressApplication) {
 }
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   await setupCrypto(); // 确保 crypto 在应用启动前设置好
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // 🚀 运行数据库迁移
   await runMigrations(app);
 
-  // 配置CORS
+  // 配置CORS(允许的来源由环境变量 CORS_ORIGINS 配置,见 src/common/cors.util.ts)
   app.enableCors({
-    origin: [
-      'http://localhost:5173', // 本地开发
-      'http://localhost:3000',
-      'http://165.227.56.186', // 生产环境
-      'http://165.227.56.186:3000',
-    ],
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
@@ -146,24 +144,24 @@ async function bootstrap() {
   const publicPath = join(__dirname, '..', 'public');
   const altPublicPath = join(process.cwd(), 'public');
 
-  console.log('Static files path:', publicPath);
-  console.log('Alt static files path:', altPublicPath);
-  console.log('Current __dirname:', __dirname);
-  console.log('Current cwd:', process.cwd());
+  logger.debug(`Static files path: ${publicPath}`);
+  logger.debug(`Alt static files path: ${altPublicPath}`);
+  logger.debug(`Current __dirname: ${__dirname}`);
+  logger.debug(`Current cwd: ${process.cwd()}`);
 
   // 检查目录是否存在，优先使用工作目录下的public
   let finalPublicPath = publicPath;
   if (existsSync(altPublicPath)) {
-    console.log('Using alt public directory');
+    logger.debug('Using alt public directory');
     const files = readdirSync(altPublicPath);
-    console.log('Files in alt public directory:', files);
+    logger.debug(`Files in alt public directory: ${files.join(', ')}`);
     finalPublicPath = altPublicPath;
   } else if (existsSync(publicPath)) {
-    console.log('Using default public directory');
+    logger.debug('Using default public directory');
     const files = readdirSync(publicPath);
-    console.log('Files in public directory:', files);
+    logger.debug(`Files in public directory: ${files.join(', ')}`);
   } else {
-    console.log('No public directory found');
+    logger.debug('No public directory found');
   }
 
   app.useStaticAssets(finalPublicPath);
@@ -179,13 +177,11 @@ async function bootstrap() {
   }); // 全局路由前缀
 
   await app.listen(process.env.PORT ?? 3000);
-  console.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
-  console.log(
+  logger.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
+  logger.log(
     `日志查看器: http://localhost:${process.env.PORT ?? 3000}/logs.html`,
   );
-  console.log(
-    `API 文档: http://localhost:${process.env.PORT ?? 3000}/api-docs`,
-  );
+  logger.log(`API 文档: http://localhost:${process.env.PORT ?? 3000}/api-docs`);
 }
 
 void bootstrap();
