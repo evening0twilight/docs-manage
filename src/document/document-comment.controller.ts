@@ -12,6 +12,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,15 +23,31 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { DocumentCommentService } from './document-comment.service';
+import { DocumentAccessService } from './document-access.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { AuthRequest } from '../common/types/auth-request';
 
 @ApiTags('评论管理')
 @ApiBearerAuth()
 @Controller('documents/:documentId/comments')
 @UseGuards(JwtAuthGuard)
 export class DocumentCommentController {
-  constructor(private readonly commentService: DocumentCommentService) {}
+  private readonly logger = new Logger(DocumentCommentController.name);
+
+  constructor(
+    private readonly commentService: DocumentCommentService,
+    private readonly accessService: DocumentAccessService,
+  ) {}
+
+  /** 从请求中提取并校验 userId(JWT 载荷使用 sub) */
+  private getUserId(req: AuthRequest): number {
+    const userId = req.user?.id ?? req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('用户身份验证失败');
+    }
+    return Number(userId);
+  }
 
   /**
    * 创建评论
@@ -41,41 +59,16 @@ export class DocumentCommentController {
   async createComment(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Body() createCommentDto: CreateCommentDto,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
-    try {
-      console.log('[创建评论] 开始处理评论创建请求');
-      console.log('[创建评论] documentId:', documentId);
-      console.log(
-        '[创建评论] createCommentDto:',
-        JSON.stringify(createCommentDto),
-      );
-      console.log('[创建评论] req.user:', req.user);
-
-      const userId: number = req.user?.id || req.user?.sub;
-
-      if (!userId) {
-        console.error('[创建评论] 错误: 无法获取用户ID', req.user);
-        throw new Error('无法获取用户ID，请检查JWT认证');
-      }
-
-      console.log('[创建评论] userId:', userId);
-
-      const comment = await this.commentService.create(
-        documentId,
-        userId,
-        createCommentDto,
-      );
-
-      console.log('[创建评论] 评论创建成功:', comment.id);
-
-      // 直接返回评论对象
-      return comment;
-    } catch (error) {
-      console.error('[创建评论] 错误:', error);
-      console.error('[创建评论] 错误堆栈:', error.stack);
-      throw error;
-    }
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
+    this.logger.debug(`用户 ${userId} 为文档 ${documentId} 创建评论`);
+    return await this.commentService.create(
+      documentId,
+      userId,
+      createCommentDto,
+    );
   }
 
   /**
@@ -86,9 +79,13 @@ export class DocumentCommentController {
   @ApiResponse({ status: 200, description: '获取成功' })
   async getComments(
     @Param('documentId', ParseIntPipe) documentId: number,
+    @Request() req: AuthRequest,
     @Query('resolved') resolved?: string,
     @Query('includeReplies') includeReplies?: string,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
+
     const options: {
       resolved?: boolean;
       includeReplies?: boolean;
@@ -119,7 +116,12 @@ export class DocumentCommentController {
   @Get('stats')
   @ApiOperation({ summary: '获取评论统计信息' })
   @ApiResponse({ status: 200, description: '获取成功' })
-  async getCommentStats(@Param('documentId', ParseIntPipe) documentId: number) {
+  async getCommentStats(
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Request() req: AuthRequest,
+  ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const stats = await this.commentService.getCommentStats(documentId);
 
     return {
@@ -135,7 +137,13 @@ export class DocumentCommentController {
   @ApiOperation({ summary: '获取单个评论详情' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @ApiResponse({ status: 404, description: '评论不存在' })
-  async getComment(@Param('commentId', ParseIntPipe) commentId: number) {
+  async getComment(
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Param('commentId', ParseIntPipe) commentId: number,
+    @Request() req: AuthRequest,
+  ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const comment = await this.commentService.findOneWithUser(commentId);
 
     return {
@@ -153,11 +161,13 @@ export class DocumentCommentController {
   @ApiResponse({ status: 403, description: '无权编辑' })
   @ApiResponse({ status: 404, description: '评论不存在' })
   async updateComment(
+    @Param('documentId', ParseIntPipe) documentId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
     @Body() updateCommentDto: UpdateCommentDto,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
-    const userId: number = req.user.id;
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const comment = await this.commentService.update(
       commentId,
       userId,
@@ -180,10 +190,12 @@ export class DocumentCommentController {
   @ApiResponse({ status: 200, description: '操作成功' })
   @ApiResponse({ status: 404, description: '评论不存在' })
   async resolveComment(
+    @Param('documentId', ParseIntPipe) documentId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
-    const userId: number = req.user.id;
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const comment = await this.commentService.resolve(commentId, userId);
 
     return {
@@ -202,10 +214,12 @@ export class DocumentCommentController {
   @ApiResponse({ status: 200, description: '操作成功' })
   @ApiResponse({ status: 404, description: '评论不存在' })
   async reopenComment(
+    @Param('documentId', ParseIntPipe) documentId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
-    const userId: number = req.user.id;
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const comment = await this.commentService.reopen(commentId, userId);
 
     return {
@@ -225,10 +239,12 @@ export class DocumentCommentController {
   @ApiResponse({ status: 403, description: '无权删除' })
   @ApiResponse({ status: 404, description: '评论不存在' })
   async deleteComment(
+    @Param('documentId', ParseIntPipe) documentId: number,
     @Param('commentId', ParseIntPipe) commentId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
-    const userId: number = req.user.id;
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     const result = await this.commentService.remove(commentId, userId);
 
     return result;

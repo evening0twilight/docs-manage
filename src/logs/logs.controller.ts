@@ -1,14 +1,17 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 
 const execAsync = promisify(exec);
 
 @ApiTags('logs')
+@ApiBearerAuth('JWT-auth')
 @Controller('logs')
+@UseGuards(JwtAuthGuard) // 日志接口会暴露系统/数据库信息,必须鉴权
 export class LogsController {
   constructor(
     @InjectDataSource()

@@ -163,7 +163,10 @@ export class DocumentDailyVersionService {
   /**
    * 手动触发每日版本创建(用于测试)
    */
-  async triggerManually(): Promise<any> {
+  async triggerManually(): Promise<{
+    checkedDocuments: number;
+    createdVersions: number;
+  }> {
     this.logger.log('📝 手动触发每日版本创建');
     return await this.createDailyVersions();
   }

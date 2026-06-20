@@ -9,10 +9,12 @@ import {
   ParseIntPipe,
   UseGuards,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { DocumentVersionService } from './document-version.service';
 import { DocumentVersionCompareService } from './document-version-compare.service';
 import { DocumentDailyVersionService } from './document-daily-version.service';
+import { DocumentAccessService } from './document-access.service';
 import {
   SaveVersionDto,
   QueryVersionDto,
@@ -21,6 +23,7 @@ import {
   CompareVersionDto,
 } from './dto/version.dto';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
+import { AuthRequest } from '../common/types/auth-request';
 
 /**
  * 文档版本管理控制器
@@ -32,7 +35,17 @@ export class DocumentVersionController {
     private readonly versionService: DocumentVersionService,
     private readonly compareService: DocumentVersionCompareService,
     private readonly dailyVersionService: DocumentDailyVersionService,
+    private readonly accessService: DocumentAccessService,
   ) {}
+
+  /** 从请求中提取并校验 userId */
+  private getUserId(req: AuthRequest): number {
+    const userId = req.user?.id ?? req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException('用户身份验证失败');
+    }
+    return Number(userId);
+  }
 
   /**
    * 保存文档版本
@@ -42,17 +55,11 @@ export class DocumentVersionController {
   async saveVersion(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Body() dto: SaveVersionDto,
-    @Req() req: any,
+    @Req() req: AuthRequest,
   ) {
-    const userId = req.user?.id || req.user?.sub;
-    if (!userId) {
-      throw new Error('用户身份验证失败');
-    }
-    return await this.versionService.saveVersion(
-      documentId,
-      Number(userId),
-      dto,
-    );
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanWrite(documentId, userId);
+    return await this.versionService.saveVersion(documentId, userId, dto);
   }
 
   /**
@@ -63,7 +70,10 @@ export class DocumentVersionController {
   async getVersions(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Query() dto: QueryVersionDto,
+    @Req() req: AuthRequest,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     return await this.versionService.getVersions(documentId, dto);
   }
 
@@ -75,7 +85,10 @@ export class DocumentVersionController {
   async getVersionDetail(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Param('versionId', ParseIntPipe) versionId: number,
+    @Req() req: AuthRequest,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     return await this.versionService.getVersionDetail(documentId, versionId);
   }
 
@@ -87,17 +100,11 @@ export class DocumentVersionController {
   async restoreVersion(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Body() dto: RestoreVersionDto,
-    @Req() req: any,
+    @Req() req: AuthRequest,
   ) {
-    const userId = req.user?.id || req.user?.sub;
-    if (!userId) {
-      throw new Error('用户身份验证失败');
-    }
-    return await this.versionService.restoreVersion(
-      documentId,
-      Number(userId),
-      dto,
-    );
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanWrite(documentId, userId);
+    return await this.versionService.restoreVersion(documentId, userId, dto);
   }
 
   /**
@@ -108,7 +115,10 @@ export class DocumentVersionController {
   async cleanOldVersions(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Query() dto: CleanVersionDto,
+    @Req() req: AuthRequest,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanWrite(documentId, userId);
     return await this.versionService.cleanOldVersions(documentId, dto);
   }
 
@@ -120,7 +130,10 @@ export class DocumentVersionController {
   async compareVersions(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Query() dto: CompareVersionDto,
+    @Req() req: AuthRequest,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
     return await this.compareService.compareVersions(
       documentId,
       dto.sourceVersionId,
@@ -135,13 +148,17 @@ export class DocumentVersionController {
   async deleteVersion(
     @Param('documentId', ParseIntPipe) documentId: number,
     @Param('versionId', ParseIntPipe) versionId: number,
+    @Req() req: AuthRequest,
   ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanWrite(documentId, userId);
     return await this.versionService.deleteVersion(documentId, versionId);
   }
 
   /**
    * 手动触发每日版本创建(用于测试)
    * POST /api/documents/versions/trigger-daily
+   * 注:已受 JwtAuthGuard 保护;如引入角色体系,建议进一步限制为管理员
    */
   @Post('versions/trigger-daily')
   async triggerDailyVersions() {
