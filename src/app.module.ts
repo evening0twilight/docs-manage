@@ -11,6 +11,7 @@ import { MailModule } from './common/mail/mail.module';
 import { UploadModule } from './common/upload/upload.module';
 import { EventsModule } from './events/events.module';
 import { AiModule } from './ai/ai.module';
+import { YjsModule } from './yjs/yjs.module';
 import { envConfig } from './config/env';
 import { validate } from './config/validation';
 import { APP_PIPE, APP_GUARD } from '@nestjs/core';
@@ -62,6 +63,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     UsersModule,
     DocumentModule,
     LogsModule,
+    YjsModule,
   ],
   controllers: [AppController],
   providers: [
