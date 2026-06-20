@@ -22,6 +22,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { DocumentService } from './document.service';
+import { DocumentHierarchyService } from './document-hierarchy.service';
 import {
   CreateDocumentDto,
   CreateFolderDto,
@@ -34,7 +35,10 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('documents')
 @Controller('documents')
 export class DocumentController {
-  constructor(private readonly documentService: DocumentService) {}
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly hierarchyService: DocumentHierarchyService,
+  ) {}
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
@@ -211,7 +215,7 @@ export class DocumentController {
         );
       }
 
-      const pathData = await this.documentService.getFolderPath(
+      const pathData = await this.hierarchyService.getFolderPath(
         folderId,
         Number(currentUserId),
       );
@@ -278,7 +282,7 @@ export class DocumentController {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
 
-      const pathData = await this.documentService.getDocumentPath(
+      const pathData = await this.hierarchyService.getDocumentPath(
         documentId,
         currentUserId ? Number(currentUserId) : undefined,
       );
@@ -338,7 +342,7 @@ export class DocumentController {
       // 处理根目录的情况
       const actualParentId = parentId === 0 ? null : parentId;
 
-      const result = await this.documentService.getFolderContentsWithMeta(
+      const result = await this.hierarchyService.getFolderContentsWithMeta(
         actualParentId,
         Number(currentUserId),
       );
@@ -405,7 +409,7 @@ export class DocumentController {
         );
       }
 
-      const tree = await this.documentService.getFolderTreeWithFilter(
+      const tree = await this.hierarchyService.getFolderTreeWithFilter(
         Number(currentUserId),
         query,
       );

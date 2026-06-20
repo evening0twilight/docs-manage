@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
 import {
@@ -28,6 +28,8 @@ export class DocumentService {
     private readonly permissionRepository: Repository<DocumentPermission>,
     private readonly eventsGateway: EventsGateway,
   ) {}
+
+  private readonly logger = new Logger(DocumentService.name);
 
   // 创建文档 (需要传入当前用户ID)
   async create(
@@ -115,35 +117,35 @@ export class DocumentService {
     query: QueryDocumentDto,
     currentUserId?: number,
   ): Promise<{ list: FileSystemItemEntity[]; count: number }> {
-    console.log('=== findDocsList Debug Info ===');
-    console.log('currentUserId:', currentUserId);
-    console.log('query:', query);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
+    this.logger.debug('=== findDocsList Debug Info ===');
+    this.logger.debug(`currentUserId: ${currentUserId}`);
+    this.logger.debug('query:', query);
+    this.logger.debug(`NODE_ENV: ${process.env.NODE_ENV}`);
 
     const qb = this.documentRepository.createQueryBuilder('doc');
 
     // 基础查询条件 - 排除已删除
     qb.where('doc.isDeleted = :isDeleted', { isDeleted: false });
-    console.log('Base condition added: isDeleted = false');
+    this.logger.debug('Base condition added: isDeleted = false');
 
     // 搜索条件
     if (query.keyword) {
       qb.andWhere('doc.name LIKE :keyword', { keyword: `%${query.keyword}%` });
-      console.log('Keyword filter added:', query.keyword);
+      this.logger.debug(`Keyword filter added: ${query.keyword}`);
     }
 
     if (query.type) {
       qb.andWhere('doc.documentType = :type', { type: query.type });
-      console.log('Type filter added:', query.type);
+      this.logger.debug(`Type filter added: ${query.type}`);
     }
 
     // 权限控制逻辑
-    console.log('Applying permission logic...');
+    this.logger.debug('Applying permission logic...');
     // 检查query中的可见性过滤器或onlyMine标志
     if (query.onlyMine === true && currentUserId) {
       // 只显示自己的文档
       qb.andWhere('doc.creator_id = :currentUserId', { currentUserId });
-      console.log('Permission: Only own docs for user', currentUserId);
+      this.logger.debug(`Permission: Only own docs for user ${currentUserId}`);
     } else if (
       query.visibility === DocumentVisibility.PRIVATE &&
       currentUserId
@@ -156,7 +158,9 @@ export class DocumentService {
           private: 'private',
         },
       );
-      console.log('Permission: Only own private docs for user', currentUserId);
+      this.logger.debug(
+        `Permission: Only own private docs for user ${currentUserId}`,
+      );
     } else if (currentUserId) {
       // 如果用户已登录，只显示公开文档和自己的文档
       qb.andWhere(
@@ -166,35 +170,34 @@ export class DocumentService {
           currentUserId,
         },
       );
-      console.log(
-        'Permission: Public docs OR own docs for user',
-        currentUserId,
+      this.logger.debug(
+        `Permission: Public docs OR own docs for user ${currentUserId}`,
       );
     } else {
       // 未登录用户只能看公开文档
       qb.andWhere('doc.visibility = :public', { public: 'public' });
-      console.log('Permission: Only public docs (no user logged in)');
+      this.logger.debug('Permission: Only public docs (no user logged in)');
     }
 
-    console.log('Generated SQL:', qb.getSql());
-    console.log('Query parameters:', qb.getParameters());
+    this.logger.debug(`Generated SQL: ${qb.getSql()}`);
+    this.logger.debug('Query parameters:', qb.getParameters());
 
     qb.orderBy('doc.created_time', 'DESC');
 
     const count = await qb.getCount();
-    console.log('Total count before pagination:', count);
+    this.logger.debug(`Total count before pagination: ${count}`);
 
     const { page = 1, limit = 10 } = query;
-    console.log('Pagination: page =', page, ', limit =', limit);
+    this.logger.debug(`Pagination: page = ${page} , limit = ${limit}`);
 
     qb.limit(Number(limit));
     qb.offset(Number(limit) * (Number(page) - 1));
 
     const docs = await qb.getMany();
-    console.log('Retrieved docs count:', docs.length);
+    this.logger.debug(`Retrieved docs count: ${docs.length}`);
 
     if (docs.length > 0) {
-      console.log('Sample document:', {
+      this.logger.debug('Sample document:', {
         id: docs[0].id,
         title: docs[0].name,
         visibility: docs[0].visibility,
@@ -208,7 +211,7 @@ export class DocumentService {
       take: 5,
       order: { created_time: 'DESC' },
     });
-    console.log(
+    this.logger.debug(
       'Raw docs in DB (first 5):',
       allDocs.map((doc) => ({
         id: doc.id,
@@ -219,7 +222,7 @@ export class DocumentService {
       })),
     );
 
-    console.log('=== End Debug Info ===');
+    this.logger.debug('=== End Debug Info ===');
 
     return { list: docs, count: count };
   }
@@ -244,7 +247,7 @@ export class DocumentService {
     }
 
     // 调试日志
-    console.log('[findDocsOne] 文档访问权限检查:', {
+    this.logger.debug('文档访问权限检查:', {
       documentId: id,
       documentName: doc.name,
       documentVisibility: doc.visibility,
@@ -280,9 +283,7 @@ export class DocumentService {
         } else {
           // 如果不是创建者且没有权限记录
           if (doc.visibility === 'private') {
-            console.warn(
-              '[findDocsOne] 权限检查失败 - 用户无权访问private文档',
-            );
+            this.logger.warn('权限检查失败 - 用户无权访问private文档');
             throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
           }
           // public 文档默认为 viewer
@@ -392,12 +393,12 @@ export class DocumentService {
       // 如果当前最小值 < 0, 说明有置顶项,使用 最小值 - 1
       updateDto.sortOrder = currentMin >= 0 ? -1 : currentMin - 1;
 
-      console.log('[置顶] 当前最小 sortOrder:', currentMin);
-      console.log('[置顶] 新的 sortOrder:', updateDto.sortOrder);
+      this.logger.debug(`[置顶] 当前最小 sortOrder: ${currentMin}`);
+      this.logger.debug(`[置顶] 新的 sortOrder: ${updateDto.sortOrder}`);
     } else if (updateDto.isPinned === false) {
       // 取消置顶: 恢复为 0
       updateDto.sortOrder = 0;
-      console.log('[取消置顶] 设置 sortOrder 为 0');
+      this.logger.debug('[取消置顶] 设置 sortOrder 为 0');
     }
 
     // 删除 isPinned 字段,不保存到数据库
@@ -459,11 +460,8 @@ export class DocumentService {
       currentParentId = parentFolder.parentId;
     }
 
-    console.log(
-      '[循环检查] 通过: 文件夹',
-      folderId,
-      '可以移动到',
-      targetParentId,
+    this.logger.debug(
+      `[循环检查] 通过: 文件夹 ${folderId} 可以移动到 ${targetParentId}`,
     );
   }
 
@@ -864,385 +862,6 @@ export class DocumentService {
     const docs = await qb.getMany();
 
     return { list: docs, count: count };
-  }
-
-  // 获取文件夹内容 (文件夹和文档)
-  async getFolderContents(
-    parentId: number | null,
-    creatorId: number,
-  ): Promise<FileSystemItemEntity[]> {
-    return await this.documentRepository.find({
-      where: {
-        parentId: parentId || undefined,
-        creatorId,
-        isDeleted: false,
-      },
-      order: {
-        itemType: 'ASC', // 文件夹排在前面
-        sortOrder: 'ASC',
-        created_time: 'DESC',
-      },
-    });
-  }
-
-  // 获取文件夹内容（带元信息，用于Keep-alive标签页）
-  async getFolderContentsWithMeta(
-    parentId: number | null,
-    creatorId: number,
-  ): Promise<{
-    currentFolder: FileSystemItemEntity | null;
-    contents: FileSystemItemEntity[];
-    folderCount: number;
-    documentCount: number;
-  }> {
-    // 获取当前文件夹信息（如果不是根目录）
-    let currentFolder: FileSystemItemEntity | null = null;
-    if (parentId) {
-      currentFolder = await this.documentRepository.findOne({
-        where: {
-          id: parentId,
-          creatorId,
-          isDeleted: false,
-          itemType: ItemType.FOLDER,
-        },
-      });
-
-      if (!currentFolder) {
-        throw new HttpException(
-          '文件夹不存在或无权限访问',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-    }
-
-    // 获取文件夹内容
-    const contents = await this.getFolderContents(parentId, creatorId);
-
-    // 统计数量
-    const folderCount = contents.filter(
-      (item) => item.itemType === ItemType.FOLDER,
-    ).length;
-    const documentCount = contents.filter(
-      (item) => item.itemType === ItemType.DOCUMENT,
-    ).length;
-
-    return {
-      currentFolder,
-      contents,
-      folderCount,
-      documentCount,
-    };
-  }
-
-  // 获取文件夹树结构
-  async getFolderTree(creatorId: number): Promise<FileSystemItemEntity[]> {
-    // 获取所有未删除的项目
-    const allItems = await this.documentRepository.find({
-      where: {
-        creatorId,
-        isDeleted: false,
-      },
-      order: {
-        itemType: 'ASC',
-        sortOrder: 'ASC',
-        created_time: 'DESC',
-      },
-    });
-
-    console.log('=== getFolderTree Debug ===');
-    console.log('Total items found:', allItems.length);
-    console.log('Items breakdown:', {
-      folders: allItems.filter((item) => item.itemType === ItemType.FOLDER)
-        .length,
-      documents: allItems.filter((item) => item.itemType === ItemType.DOCUMENT)
-        .length,
-      rootLevel: allItems.filter((item) => !item.parentId).length,
-    });
-
-    // 构建树形结构
-    const itemMap = new Map<
-      number,
-      FileSystemItemEntity & { children?: FileSystemItemEntity[] }
-    >();
-    const rootItems: FileSystemItemEntity[] = [];
-
-    // 先将所有项目放入map
-    allItems.forEach((item) => {
-      // 只给文件夹类型添加children字段，文档类型不需要
-      const itemWithChildren =
-        item.itemType === ItemType.FOLDER
-          ? { ...item, children: [] }
-          : { ...item };
-      itemMap.set(item.id, itemWithChildren);
-    });
-
-    // 构建父子关系
-    allItems.forEach((item) => {
-      const currentItem = itemMap.get(item.id)!;
-
-      if (item.parentId) {
-        // 有父文件夹的项目
-        const parent = itemMap.get(item.parentId);
-        if (parent) {
-          parent.children = parent.children || [];
-          parent.children.push(currentItem);
-        } else {
-          // 父文件夹不存在，放到根级别
-          console.warn(
-            `Parent folder ${item.parentId} not found for item ${item.id}, placing at root level`,
-          );
-          rootItems.push(currentItem);
-        }
-      } else {
-        // 没有父文件夹的项目（包括根级文档和文件夹）
-        rootItems.push(currentItem);
-      }
-    });
-
-    console.log('Root level items:', rootItems.length);
-    console.log('Root items breakdown:', {
-      folders: rootItems.filter((item) => item.itemType === ItemType.FOLDER)
-        .length,
-      documents: rootItems.filter((item) => item.itemType === ItemType.DOCUMENT)
-        .length,
-    });
-
-    return rootItems;
-  }
-
-  // 获取文件夹树结构（带搜索过滤功能）
-  async getFolderTreeWithFilter(
-    creatorId: number,
-    query?: QueryDocumentDto,
-  ): Promise<FileSystemItemEntity[]> {
-    // 构建查询条件
-    const qb = this.documentRepository.createQueryBuilder('item');
-
-    qb.where('item.creatorId = :creatorId', { creatorId }).andWhere(
-      'item.isDeleted = :isDeleted',
-      { isDeleted: false },
-    );
-
-    // 搜索过滤
-    if (query?.keyword) {
-      qb.andWhere('item.name LIKE :keyword', { keyword: `%${query.keyword}%` });
-    }
-
-    // 文档类型过滤
-    if (query?.type) {
-      qb.andWhere('item.documentType = :type', { type: query.type });
-    }
-
-    // 可见性过滤
-    if (query?.visibility) {
-      qb.andWhere('item.visibility = :visibility', {
-        visibility: query.visibility,
-      });
-    }
-
-    qb.orderBy('item.itemType', 'ASC')
-      .addOrderBy('item.sortOrder', 'ASC')
-      .addOrderBy('item.created_time', 'DESC');
-
-    const filteredItems = await qb.getMany();
-
-    // 如果有搜索条件，需要包含匹配项的所有父文件夹
-    let allItems = filteredItems;
-    if (query?.keyword || query?.type || query?.visibility) {
-      // 获取所有匹配项的父文件夹链
-      const parentIds = new Set<number>();
-
-      for (const item of filteredItems) {
-        let currentParentId: number | null = item.parentId;
-        while (currentParentId) {
-          parentIds.add(currentParentId);
-          // 查找父文件夹的父文件夹
-          const parent = await this.documentRepository.findOne({
-            where: { id: currentParentId, creatorId, isDeleted: false },
-          });
-          currentParentId = parent?.parentId || null;
-        }
-      }
-
-      // 获取所有需要的父文件夹
-      if (parentIds.size > 0) {
-        const parentFolders = await this.documentRepository.find({
-          where: {
-            id: In(Array.from(parentIds)),
-            creatorId,
-            isDeleted: false,
-            itemType: ItemType.FOLDER,
-          },
-        });
-
-        // 合并结果，去重
-        const itemMap = new Map();
-        [...filteredItems, ...parentFolders].forEach((item) => {
-          itemMap.set(item.id, item);
-        });
-        allItems = Array.from(itemMap.values());
-      }
-    }
-
-    console.log('=== getFolderTreeWithFilter Debug ===');
-    console.log('Filtered items found:', filteredItems.length);
-    console.log('Total items for tree building:', allItems.length);
-    console.log('Query filters:', query);
-
-    // 构建树形结构
-    const itemMap = new Map<
-      number,
-      FileSystemItemEntity & { children?: FileSystemItemEntity[] }
-    >();
-    const rootItems: FileSystemItemEntity[] = [];
-
-    // 先将所有项目放入map
-    allItems.forEach((item) => {
-      // 只给文件夹类型添加children字段，文档类型不需要
-      const itemWithChildren =
-        item.itemType === ItemType.FOLDER
-          ? { ...item, children: [] }
-          : { ...item };
-      itemMap.set(item.id, itemWithChildren);
-    });
-
-    // 构建父子关系
-    allItems.forEach((item) => {
-      const currentItem = itemMap.get(item.id)!;
-
-      if (item.parentId) {
-        // 有父文件夹的项目
-        const parent = itemMap.get(item.parentId);
-        if (parent) {
-          parent.children = parent.children || [];
-          parent.children.push(currentItem);
-        } else {
-          // 父文件夹不存在或不在过滤结果中，放到根级别
-          rootItems.push(currentItem);
-        }
-      } else {
-        // 没有父文件夹的项目（包括根级文档和文件夹）
-        rootItems.push(currentItem);
-      }
-    });
-
-    console.log('Final root items:', rootItems.length);
-    console.log('Root items breakdown:', {
-      folders: rootItems.filter((item) => item.itemType === ItemType.FOLDER)
-        .length,
-      documents: rootItems.filter((item) => item.itemType === ItemType.DOCUMENT)
-        .length,
-    });
-
-    return rootItems;
-  }
-
-  // 获取文件夹路径（面包屑导航）
-  async getFolderPath(
-    folderId: number,
-    creatorId: number,
-  ): Promise<{
-    currentFolder: FileSystemItemEntity;
-    breadcrumbs: FileSystemItemEntity[];
-  }> {
-    // 首先验证文件夹是否存在且属于当前用户
-    const currentFolder = await this.documentRepository.findOne({
-      where: {
-        id: folderId,
-        creatorId,
-        isDeleted: false,
-        itemType: ItemType.FOLDER,
-      },
-    });
-
-    if (!currentFolder) {
-      throw new HttpException('文件夹不存在或无权限访问', HttpStatus.NOT_FOUND);
-    }
-
-    // 构建面包屑路径
-    const breadcrumbs: FileSystemItemEntity[] = [];
-    let current: FileSystemItemEntity | null = currentFolder;
-
-    // 从当前文件夹开始向上遍历到根目录
-    while (current) {
-      breadcrumbs.unshift(current);
-
-      if (current.parentId) {
-        current = await this.documentRepository.findOne({
-          where: {
-            id: current.parentId,
-            creatorId,
-            isDeleted: false,
-            itemType: ItemType.FOLDER,
-          },
-        });
-      } else {
-        break;
-      }
-    }
-
-    return {
-      currentFolder,
-      breadcrumbs,
-    };
-  }
-
-  // 获取文档路径（面包屑导航）
-  async getDocumentPath(
-    documentId: number,
-    currentUserId?: number,
-  ): Promise<{
-    currentDocument: FileSystemItemEntity;
-    breadcrumbs: FileSystemItemEntity[];
-  }> {
-    // 首先验证文档是否存在且有权限访问
-    const currentDocument = await this.documentRepository.findOne({
-      where: {
-        id: documentId,
-        isDeleted: false,
-        itemType: ItemType.DOCUMENT,
-      },
-    });
-
-    if (!currentDocument) {
-      throw new HttpException('文档不存在', HttpStatus.NOT_FOUND);
-    }
-
-    // 权限检查
-    if (
-      currentDocument.visibility === 'private' &&
-      currentDocument.creatorId !== currentUserId
-    ) {
-      throw new HttpException('无权访问此文档', HttpStatus.FORBIDDEN);
-    }
-
-    // 构建面包屑路径（只包含文件夹，不包含文档本身）
-    const breadcrumbs: FileSystemItemEntity[] = [];
-    let currentFolderId: number | null = currentDocument.parentId;
-
-    // 从文档的父文件夹开始向上遍历到根目录
-    while (currentFolderId) {
-      const folder = await this.documentRepository.findOne({
-        where: {
-          id: currentFolderId,
-          creatorId: currentDocument.creatorId, // 使用文档创建者的ID
-          isDeleted: false,
-          itemType: ItemType.FOLDER,
-        },
-      });
-
-      if (folder) {
-        breadcrumbs.unshift(folder);
-        currentFolderId = folder.parentId;
-      } else {
-        break;
-      }
-    }
-
-    return {
-      currentDocument,
-      breadcrumbs,
-    };
   }
 
   // 批量获取文档（用于Keep-alive标签页预加载）

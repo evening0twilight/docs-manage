@@ -4,6 +4,8 @@ import { DocumentPermissionController } from './document-permission.controller';
 import { DocumentCommentController } from './document-comment.controller';
 import { DocumentVersionController } from './document-version.controller';
 import { DocumentService } from './document.service';
+import { DocumentHierarchyService } from './document-hierarchy.service';
+import { DocumentAccessService } from './document-access.service';
 import { DocumentPermissionService } from './document-permission.service';
 import { DocumentCommentService } from './document-comment.service';
 import { DocumentVersionService } from './document-version.service';
@@ -49,6 +51,8 @@ import { EventsModule } from '../events/events.module';
   ],
   providers: [
     DocumentService,
+    DocumentHierarchyService,
+    DocumentAccessService,
     DocumentPermissionService,
     DocumentCommentService,
     DocumentVersionService,
