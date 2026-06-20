@@ -1,4 +1,9 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  HttpException,
+  HttpStatus,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -18,7 +23,7 @@ import {
 } from './dto/email-verification.dto';
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleDestroy {
   constructor(
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
@@ -366,6 +371,17 @@ export class UsersService {
 
   // 临时存储：记录哪些用户已通过旧邮箱验证（key: userId, value: 验证时间戳）
   private oldEmailVerifiedMap = new Map<number, number>();
+  // 对应的过期清理定时器（key: userId）—— 用于避免重复创建与进程退出时的残留
+  private oldEmailTimers = new Map<number, NodeJS.Timeout>();
+
+  // 模块销毁时清理所有未触发的定时器,避免内存泄漏
+  onModuleDestroy(): void {
+    for (const timer of this.oldEmailTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.oldEmailTimers.clear();
+    this.oldEmailVerifiedMap.clear();
+  }
 
   /**
    * 【步骤1】验证当前邮箱的验证码
@@ -438,14 +454,20 @@ export class UsersService {
     this.oldEmailVerifiedMap.set(userId, Date.now());
     console.log(`[VerifyOldEmail] 用户 ${userId} 当前邮箱验证通过`);
 
-    // 6. 定时清理（10分钟后）
-    setTimeout(
+    // 6. 定时清理（10分钟后）—— 先清掉该用户已有的定时器,避免重复调用时累积
+    const existingTimer = this.oldEmailTimers.get(userId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    const timer = setTimeout(
       () => {
         this.oldEmailVerifiedMap.delete(userId);
+        this.oldEmailTimers.delete(userId);
         console.log(`[VerifyOldEmail] 用户 ${userId} 的验证状态已过期`);
       },
       10 * 60 * 1000,
     );
+    this.oldEmailTimers.set(userId, timer);
   }
 
   /**
@@ -529,6 +551,11 @@ export class UsersService {
 
     // 7. 清除验证状态（防止重复使用）
     this.oldEmailVerifiedMap.delete(userId);
+    const verifyTimer = this.oldEmailTimers.get(userId);
+    if (verifyTimer) {
+      clearTimeout(verifyTimer);
+      this.oldEmailTimers.delete(userId);
+    }
 
     // 8. 更新邮箱和修改时间
     console.log(
@@ -539,8 +566,8 @@ export class UsersService {
       lastEmailChangedAt: new Date(),
     });
 
-    // 9. 向旧邮箱发送通知（异步，不阻塞响应）
-    this.mailService
+    // 9. 向旧邮箱发送通知（异步，不阻塞响应；显式 void 表示有意 fire-and-forget）
+    void this.mailService
       .sendEmailChangeNotification(oldEmail, newEmail, user.username, ipAddress)
       .then(() => {
         console.log(`[ChangeEmail] ✅ 已向旧邮箱 ${oldEmail} 发送变更通知`);
