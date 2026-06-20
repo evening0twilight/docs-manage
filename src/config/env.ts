@@ -5,6 +5,18 @@ export const envConfig = {
   path: join(process.cwd(), '.env'), // 直接使用项目根目录下的 .env 文件
 };
 
+/**
+ * 读取必填环境变量,缺失时直接抛错(fail-fast)。
+ * 用于密钥等安全敏感配置——绝不允许回退到弱默认值。
+ */
+const requireEnv = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`环境变量 ${key} 未配置,出于安全考虑拒绝启动`);
+  }
+  return value;
+};
+
 // 数据库配置
 export const databaseConfig = () => ({
   type: 'mysql' as const,
@@ -19,10 +31,10 @@ export const databaseConfig = () => ({
   logging: process.env.NODE_ENV === 'development',
 });
 
-// JWT 配置
+// JWT 配置(密钥为必填,缺失即抛错,杜绝弱默认值导致的令牌伪造风险)
 export const jwtConfig = () => ({
-  secret: process.env.JWT_SECRET || 'default-jwt-secret',
-  refreshSecret: process.env.JWT_REFRESH_SECRET || 'default-jwt-refresh-secret',
+  secret: requireEnv('JWT_SECRET'),
+  refreshSecret: requireEnv('JWT_REFRESH_SECRET'),
   expiresIn: process.env.JWT_EXPIRES_IN || '24h',
   refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 });

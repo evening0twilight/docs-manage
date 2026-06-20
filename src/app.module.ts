@@ -12,7 +12,7 @@ import { UploadModule } from './common/upload/upload.module';
 import { EventsModule } from './events/events.module';
 import { AiModule } from './ai/ai.module';
 import { envConfig } from './config/env';
-// import { validate } from './config/validation';
+import { validate } from './config/validation';
 import { APP_PIPE } from '@nestjs/core';
 
 @Module({
@@ -20,25 +20,37 @@ import { APP_PIPE } from '@nestjs/core';
     ConfigModule.forRoot({
       isGlobal: true, //设置为全局模块
       envFilePath: [envConfig.path],
-      // validate, // 暂时禁用验证
+      validate, // 启动时校验必填环境变量(含 JWT_SECRET / JWT_REFRESH_SECRET),缺失则 fail-fast
     }),
     ScheduleModule.forRoot(), // 启用定时任务模块
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql' as const, // 数据库类型
-        entities: [__dirname + '/**/*.entity{.ts,.js}'], // 数据表实体
-        host: configService.get<string>('DB_HOST', 'localhost'), // 主机，默认为localhost
-        port: configService.get<number>('DB_PORT', 3306),
-        username: configService.get<string>('DB_USERNAME', 'root'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_NAME', 'docs-manage'),
-        timezone: '+08:00', // 服务器上配置的时区：东八时区
-        autoLoadEntities: true, //自动加载实体
-        synchronize: true, // 临时启用以创建表结构
-        logging: configService.get<string>('NODE_ENV') !== 'production', // 生产环境也开启日志用于调试
-      }),
+      useFactory: (configService: ConfigService) => {
+        const isProduction =
+          configService.get<string>('NODE_ENV') === 'production';
+        const password = configService.get<string>('DB_PASSWORD', '');
+
+        // 生产环境必须配置非空数据库密码,杜绝无密码访问
+        if (isProduction && !password) {
+          throw new Error('生产环境必须配置非空的 DB_PASSWORD');
+        }
+
+        return {
+          type: 'mysql' as const, // 数据库类型
+          entities: [__dirname + '/**/*.entity{.ts,.js}'], // 数据表实体
+          host: configService.get<string>('DB_HOST', 'localhost'), // 主机，默认为localhost
+          port: configService.get<number>('DB_PORT', 3306),
+          username: configService.get<string>('DB_USERNAME', 'root'),
+          password,
+          database: configService.get<string>('DB_NAME', 'docs-manage'),
+          timezone: '+08:00', // 服务器上配置的时区：东八时区
+          autoLoadEntities: true, //自动加载实体
+          // 生产环境禁用自动同步,避免自动改表导致数据丢失(改用迁移)
+          synchronize: !isProduction,
+          logging: !isProduction,
+        };
+      },
     }),
     MailModule,
     UploadModule,
