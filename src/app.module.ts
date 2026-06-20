@@ -15,7 +15,8 @@ import { YjsModule } from './yjs/yjs.module';
 import { envConfig } from './config/env';
 import { validate } from './config/validation';
 import { APP_PIPE, APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { HttpThrottlerGuard } from './common/guards/http-throttler.guard';
 
 @Module({
   imports: [
@@ -68,10 +69,10 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
   controllers: [AppController],
   providers: [
     AppService,
-    // 全局限流守卫
+    // 全局限流守卫(仅作用于 HTTP,跳过 WebSocket 等上下文)
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: HttpThrottlerGuard,
     },
     // 这里加上了全局验证管道配置，用于全局验证数据
     {
