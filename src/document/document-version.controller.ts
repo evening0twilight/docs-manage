@@ -27,8 +27,9 @@ import { AuthRequest } from '../common/types/auth-request';
 
 /**
  * 文档版本管理控制器
+ * 路由前缀 documents(全局已有 api 前缀 → /api/documents/...),避免历史上的 /api/api 双前缀
  */
-@Controller('api/documents')
+@Controller('documents')
 @UseGuards(JwtAuthGuard)
 export class DocumentVersionController {
   constructor(
