@@ -31,6 +31,7 @@ import {
 } from './dto';
 import { ResponseDto } from '../common/dto';
 import { AuthGuard } from '@nestjs/passport';
+import { AuthRequest } from '../common/types/auth-request';
 
 @ApiTags('documents')
 @Controller('documents')
@@ -60,7 +61,7 @@ export class DocumentController {
   @ApiResponse({ status: 400, description: '请求参数错误' })
   async create(
     @Body() createDocumentDto: CreateDocumentDto,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -116,7 +117,7 @@ export class DocumentController {
   @ApiResponse({ status: 409, description: '文件夹名称已存在' })
   async createFolder(
     @Body() createFolderDto: CreateFolderDto,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -187,7 +188,7 @@ export class DocumentController {
   @ApiResponse({ status: 404, description: '文件夹不存在' })
   async getFolderPath(
     @Param('folderId', ParseIntPipe) folderId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -277,7 +278,7 @@ export class DocumentController {
   @ApiResponse({ status: 404, description: '文档不存在' })
   async getDocumentPath(
     @Param('documentId', ParseIntPipe) documentId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -325,7 +326,7 @@ export class DocumentController {
   @ApiResponse({ status: 401, description: '未授权访问' })
   async getFolderContents(
     @Param('parentId', ParseIntPipe) parentId: number,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -396,7 +397,10 @@ export class DocumentController {
     description: '获取文件夹树成功',
   })
   @ApiResponse({ status: 401, description: '未授权访问' })
-  async getFolderTree(@Query() query: QueryDocumentDto, @Request() req: any) {
+  async getFolderTree(
+    @Query() query: QueryDocumentDto,
+    @Request() req: AuthRequest,
+  ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
       if (!currentUserId) {
@@ -476,7 +480,7 @@ export class DocumentController {
   @ApiResponse({ status: 400, description: '请求参数错误' })
   async batchGetDocuments(
     @Body() body: { ids: number[] },
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
@@ -594,7 +598,10 @@ export class DocumentController {
   @ApiResponse({ status: 403, description: '无权访问此文档' })
   @ApiResponse({ status: 404, description: '文档不存在' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async findOne(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: AuthRequest,
+  ) {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
 
@@ -702,10 +709,10 @@ export class DocumentController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateFileSystemItemDto,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
-      const currentUserId = Number(req.user.sub); // 确保是数字类型
+      const currentUserId = Number(req.user?.sub); // 确保是数字类型
 
       const updatedItem = await this.documentService.updateFileSystemItem(
         id,
@@ -752,9 +759,12 @@ export class DocumentController {
   @ApiResponse({ status: 403, description: '权限不足' })
   @ApiResponse({ status: 404, description: '文档不存在' })
   @ApiResponse({ status: 400, description: '请求参数错误' })
-  async remove(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: AuthRequest,
+  ) {
     try {
-      const currentUserId = Number(req.user.sub); // 确保是数字类型
+      const currentUserId = Number(req.user?.sub); // 确保是数字类型
 
       await this.documentService.remove(id, currentUserId);
       return new ResponseDto(
@@ -808,10 +818,10 @@ export class DocumentController {
   async toggleCollaboration(
     @Param('id', ParseIntPipe) id: number,
     @Body('enabled') enabled: boolean,
-    @Request() req: any,
+    @Request() req: AuthRequest,
   ) {
     try {
-      const currentUserId = Number(req.user.sub);
+      const currentUserId = Number(req.user?.sub);
       const result = await this.documentService.toggleCollaboration(
         id,
         enabled,
