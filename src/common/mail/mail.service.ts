@@ -53,6 +53,10 @@ export class MailService {
       if (!resendApiKey) {
         throw new Error('RESEND_API_KEY 未配置');
       }
+      const resendFrom = this.configService.get<string>('RESEND_FROM');
+      if (!resendFrom) {
+        throw new Error('RESEND_FROM 未配置(使用 Resend 时必须指定发件地址)');
+      }
       this.resendClient = new Resend(resendApiKey);
       this.logger.log('Resend 邮件服务初始化成功');
       return;
@@ -456,8 +460,8 @@ ${ipAddress ? `操作IP：${ipAddress}` : ''}
       throw new Error('Resend 客户端未初始化');
     }
 
-    const from =
-      this.configService.get<string>('RESEND_FROM') || 'onboarding@resend.dev';
+    // RESEND_FROM 已在初始化时校验为必填,此处不再回退到占位邮箱
+    const from = this.configService.getOrThrow<string>('RESEND_FROM');
 
     try {
       const { data, error } = await this.resendClient.emails.send({

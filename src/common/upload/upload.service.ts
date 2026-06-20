@@ -12,12 +12,16 @@ export class UploadService {
   private domain: string;
   private maxFileSize: number;
   private allowedTypes: string[];
+  private cosConfigured: boolean;
 
   constructor(private configService: ConfigService) {
+    const secretId = this.configService.get<string>('cos.secretId');
+    const secretKey = this.configService.get<string>('cos.secretKey');
+
     // 初始化腾讯云 COS 客户端
     this.cosClient = new COS({
-      SecretId: this.configService.get<string>('cos.secretId'),
-      SecretKey: this.configService.get<string>('cos.secretKey'),
+      SecretId: secretId,
+      SecretKey: secretKey,
     });
 
     this.bucket = this.configService.get<string>('cos.bucket') || '';
@@ -29,7 +33,28 @@ export class UploadService {
       'cos.allowedTypes',
     ) || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-    console.log('[UploadService] 腾讯云 COS 初始化成功');
+    // 配置完整才视为可用;否则不阻断启动,但在实际使用时给出明确错误(替代静默失败)
+    this.cosConfigured = Boolean(
+      secretId && secretKey && this.bucket && this.region && this.domain,
+    );
+    if (this.cosConfigured) {
+      console.log('[UploadService] 腾讯云 COS 初始化成功');
+    } else {
+      console.warn(
+        '[UploadService] ⚠️ COS 配置不完整,文件上传/删除功能不可用' +
+          '(需配置 COS_SECRET_ID/COS_SECRET_KEY/COS_BUCKET/COS_REGION/COS_DOMAIN)',
+      );
+    }
+  }
+
+  /** 确保 COS 已正确配置,否则抛出明确错误(替代静默失败) */
+  private ensureConfigured(): void {
+    if (!this.cosConfigured) {
+      throw new HttpException(
+        '文件存储(COS)未配置,无法处理文件操作',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
   }
 
   /**
@@ -42,6 +67,7 @@ export class UploadService {
     file: Express.Multer.File,
     folder: string = 'uploads',
   ): Promise<string> {
+    this.ensureConfigured();
     // 验证文件
     this.validateFile(file);
 
@@ -93,6 +119,7 @@ export class UploadService {
    * @param fileUrl 文件URL
    */
   async deleteFile(fileUrl: string): Promise<void> {
+    this.ensureConfigured();
     try {
       // 从URL提取Key
       const key = fileUrl.replace(`${this.domain}/`, '');
@@ -117,6 +144,7 @@ export class UploadService {
    * @returns 临时URL
    */
   getSignedUrl(fileUrl: string, expiresIn: number = 3600): string {
+    this.ensureConfigured();
     try {
       const key = fileUrl.replace(`${this.domain}/`, '');
 
