@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -19,6 +20,8 @@ import {
 
 @Injectable()
 export class DocumentPermissionService {
+  private readonly logger = new Logger(DocumentPermissionService.name);
+
   constructor(
     @InjectRepository(DocumentPermission)
     private permissionRepository: Repository<DocumentPermission>,
@@ -36,8 +39,8 @@ export class DocumentPermissionService {
     documentId: number,
     action: 'read' | 'write' | 'delete' | 'share',
   ): Promise<boolean> {
-    console.log(
-      `[CheckPermission] 开始检查权限: userId=${userId}, documentId=${documentId}, action=${action}`,
+    this.logger.debug(
+      `开始检查权限: userId=${userId}, documentId=${documentId}, action=${action}`,
     );
 
     // 1. 检查文档是否存在
@@ -45,18 +48,18 @@ export class DocumentPermissionService {
       where: { id: documentId },
     });
 
-    console.log(`[CheckPermission] 文档查询结果: document=${document?.id}`);
+    this.logger.debug(`文档查询结果: document=${document?.id}`);
 
     if (!document) {
       throw new NotFoundException('文档不存在');
     }
 
     // 2. 如果是创建者,拥有所有权限
-    console.log(
-      `[CheckPermission] 创建者检查: creatorId=${document.creatorId}, userId=${userId}`,
+    this.logger.debug(
+      `创建者检查: creatorId=${document.creatorId}, userId=${userId}`,
     );
     if (document.creatorId === userId) {
-      console.log(`[CheckPermission] 用户是文档创建者,拥有所有权限`);
+      this.logger.debug(`用户是文档创建者,拥有所有权限`);
       return true;
     }
 
@@ -68,12 +71,10 @@ export class DocumentPermissionService {
       },
     });
 
-    console.log(
-      `[CheckPermission] 权限记录查询结果: permission=${permission?.id}`,
-    );
+    this.logger.debug(`权限记录查询结果: permission=${permission?.id}`);
 
     if (!permission) {
-      console.log(`[CheckPermission] 未找到权限记录,返回false`);
+      this.logger.debug(`未找到权限记录,返回false`);
       return false;
     }
 
@@ -96,7 +97,7 @@ export class DocumentPermissionService {
         result = false;
     }
 
-    console.log(`[CheckPermission] 权限检查结果: ${action}=${result}`);
+    this.logger.debug(`权限检查结果: ${action}=${result}`);
     return result;
   }
 
@@ -108,8 +109,8 @@ export class DocumentPermissionService {
     shareDto: ShareDocumentDto,
     currentUserId: number,
   ): Promise<DocumentPermission> {
-    console.log(
-      `[ShareDocument] 开始分享文档: documentId=${documentId}, currentUserId=${currentUserId}, targetUser=${shareDto.userIdentifier}, role=${shareDto.role}`,
+    this.logger.debug(
+      `开始分享文档: documentId=${documentId}, currentUserId=${currentUserId}, targetUser=${shareDto.userIdentifier}, role=${shareDto.role}`,
     );
 
     // 1. 检查当前用户是否有分享权限
@@ -119,8 +120,8 @@ export class DocumentPermissionService {
       'share',
     );
 
-    console.log(
-      `[ShareDocument] 分享权限检查结果: hasSharePermission=${hasSharePermission}`,
+    this.logger.debug(
+      `分享权限检查结果: hasSharePermission=${hasSharePermission}`,
     );
 
     if (!hasSharePermission) {
@@ -132,17 +133,15 @@ export class DocumentPermissionService {
 
     if (shareDto.userIdentifier.includes('@')) {
       // 通过邮箱查找
-      console.log(
-        `[ShareDocument] 通过邮箱查找用户: ${shareDto.userIdentifier}`,
-      );
+      this.logger.debug(`通过邮箱查找用户: ${shareDto.userIdentifier}`);
       targetUser = await this.userRepository.findOne({
         where: { email: shareDto.userIdentifier },
       });
     } else {
       // 尝试作为用户ID查找
       const userId = parseInt(shareDto.userIdentifier);
-      console.log(
-        `[ShareDocument] 尝试通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
+      this.logger.debug(
+        `尝试通过ID查找用户: ${shareDto.userIdentifier} -> ${userId}`,
       );
 
       if (!isNaN(userId)) {
@@ -153,8 +152,8 @@ export class DocumentPermissionService {
 
       // 如果ID查找失败,尝试作为用户名查找
       if (!targetUser) {
-        console.log(
-          `[ShareDocument] ID查找失败,尝试通过用户名查找: ${shareDto.userIdentifier}`,
+        this.logger.debug(
+          `ID查找失败,尝试通过用户名查找: ${shareDto.userIdentifier}`,
         );
         targetUser = await this.userRepository.findOne({
           where: { username: shareDto.userIdentifier },
@@ -162,7 +161,7 @@ export class DocumentPermissionService {
       }
     }
 
-    console.log(`[ShareDocument] 找到目标用户: ${targetUser?.id}`);
+    this.logger.debug(`找到目标用户: ${targetUser?.id}`);
 
     if (!targetUser) {
       throw new NotFoundException('目标用户不存在');
@@ -176,16 +175,14 @@ export class DocumentPermissionService {
       },
     });
 
-    console.log(
-      `[ShareDocument] 现有权限检查: existingPermission=${existingPermission?.id}`,
+    this.logger.debug(
+      `现有权限检查: existingPermission=${existingPermission?.id}`,
     );
 
     // 4. 根据角色设置权限
     const permissionData = this.getRolePermissions(shareDto.role);
 
-    console.log(
-      `[ShareDocument] 角色权限数据: ${JSON.stringify(permissionData)}`,
-    );
+    this.logger.debug(`角色权限数据: ${JSON.stringify(permissionData)}`);
 
     // 允许自定义权限覆盖默认权限
     if (shareDto.canRead !== undefined)
@@ -197,34 +194,30 @@ export class DocumentPermissionService {
     if (shareDto.canShare !== undefined)
       permissionData.canShare = shareDto.canShare;
 
-    console.log(
-      `[ShareDocument] 最终权限数据: ${JSON.stringify(permissionData)}`,
-    );
+    this.logger.debug(`最终权限数据: ${JSON.stringify(permissionData)}`);
 
     if (existingPermission) {
       // 更新现有权限
-      console.log(`[ShareDocument] 更新现有权限: ${existingPermission.id}`);
+      this.logger.debug(`更新现有权限: ${existingPermission.id}`);
       Object.assign(existingPermission, {
         role: shareDto.role,
         ...permissionData,
       });
       const result = await this.permissionRepository.save(existingPermission);
-      console.log(`[ShareDocument] 权限更新成功`);
+      this.logger.debug(`权限更新成功`);
       return result;
     } else {
       // 创建新权限
-      console.log(`[ShareDocument] 创建新权限`);
+      this.logger.debug(`创建新权限`);
       const permission = this.permissionRepository.create({
         documentId: documentId,
         userId: targetUser.id,
         role: shareDto.role,
         ...permissionData,
       });
-      console.log(
-        `[ShareDocument] 准备保存的权限对象: ${JSON.stringify(permission)}`,
-      );
+      this.logger.debug(`准备保存的权限对象: ${JSON.stringify(permission)}`);
       const result = await this.permissionRepository.save(permission);
-      console.log(`[ShareDocument] 权限创建成功: ${result.id}`);
+      this.logger.debug(`权限创建成功: ${result.id}`);
       return result;
     }
   }

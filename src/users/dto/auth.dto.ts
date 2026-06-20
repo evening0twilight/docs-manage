@@ -1,10 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  IsEmail,
-  IsOptional,
-} from 'class-validator';
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -30,35 +24,6 @@ export class AuthDto {
   @IsString({ message: '密码必须是字符串' })
   @MinLength(6, { message: '密码至少6个字符' })
   password: string;
-}
-
-/**
- * @deprecated 此 DTO 已废弃，请使用 RegisterWithCodeDto 进行邮箱验证注册
- * 保留此类仅用于类型兼容性
- */
-export class RegisterDto extends AuthDto {
-  @ApiProperty({
-    description: '邮箱地址',
-    example: 'testuser@example.com',
-    format: 'email',
-  })
-  @IsNotEmpty({ message: '邮箱不能为空' })
-  @IsEmail({}, { message: '邮箱格式不正确' })
-  @Transform(({ value }: { value: string }) => {
-    return typeof value === 'string' ? value.toLowerCase().trim() : value;
-  })
-  email: string;
-
-  @ApiPropertyOptional({
-    description: '用户姓名',
-    example: '张三',
-  })
-  @IsOptional()
-  @IsString({ message: '姓名必须是字符串' })
-  @Transform(({ value }: { value: string }) => {
-    return typeof value === 'string' ? value.trim() : value;
-  })
-  name?: string;
 }
 
 export class LoginDto {
@@ -150,16 +115,6 @@ export class AuthResponse {
 
   @ApiProperty({ description: '用户信息', type: UserResponseDto })
   user: UserResponseDto;
-}
-
-export interface AuthResponseInterface {
-  access_token: string;
-  refresh_token: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-  };
 }
 
 export interface TokenPayload {
