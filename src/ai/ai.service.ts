@@ -150,13 +150,8 @@ export class AiService {
   /**
    * 生成Mock响应内容
    */
-  private generateMockResponse(dto: AIChatRequestDto, prompt: string): string {
+  private generateMockResponse(dto: AIChatRequestDto, _prompt: string): string {
     const message = dto.message.toLowerCase();
-
-    // 如果Prompt已经包含命令，直接返回
-    if (prompt.includes('[AI_COMMAND:')) {
-      return prompt;
-    }
 
     // 针对常见请求生成响应
     if (message.includes('润色') || message.includes('polish')) {

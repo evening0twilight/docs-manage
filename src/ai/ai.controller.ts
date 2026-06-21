@@ -12,7 +12,9 @@ import { AiService } from './ai.service';
 import { AIChatRequestDto, AIQuickActionDto } from './dto/ai.dto';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 
-@Controller('api/ai')
+// 全局已设置 setGlobalPrefix('api'),此处只写 'ai',最终路由为 /api/ai/*
+// (此前写成 'api/ai' 会与全局前缀叠加成 /api/api/ai,导致前端 404)
+@Controller('ai')
 @UseGuards(JwtAuthGuard) // 需要登录才能使用AI功能
 export class AiController {
   private readonly logger = new Logger(AiController.name);
