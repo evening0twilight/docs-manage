@@ -62,8 +62,8 @@ export class DocumentDailyVersionService {
       .createQueryBuilder('doc')
       .where('doc.itemType = :itemType', { itemType: 'document' })
       .andWhere('doc.isDeleted = :isDeleted', { isDeleted: false })
-      .andWhere('doc.updatedAt >= :yesterday', { yesterday })
-      .andWhere('doc.updatedAt < :today', { today })
+      .andWhere('doc.updated_time >= :yesterday', { yesterday })
+      .andWhere('doc.updated_time < :today', { today })
       .getMany();
 
     this.logger.log(`📄 找到 ${updatedDocuments.length} 个昨天有更新的文档`);

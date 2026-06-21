@@ -57,22 +57,29 @@ export class DocumentCommentService {
       if (!parentComment) {
         throw new NotFoundException('父评论不存在');
       }
-
-      // 更新父评论的回复计数
-      await this.commentRepository.increment(
-        { id: createCommentDto.parentId },
-        'replyCount',
-        1,
-      );
     }
 
-    // 创建评论
+    // 创建评论;若为回复,则保存与父评论计数递增放入同一事务,
+    // 先保存成功再递增,避免保存失败时计数被提前累加导致漂移。
     const comment = this.commentRepository.create({
       documentId,
       userId,
       ...createCommentDto,
     });
-    const savedComment = await this.commentRepository.save(comment);
+    const savedComment = await this.commentRepository.manager.transaction(
+      async (em) => {
+        const saved = await em.save(comment);
+        if (createCommentDto.parentId) {
+          await em.increment(
+            DocumentComment,
+            { id: createCommentDto.parentId },
+            'replyCount',
+            1,
+          );
+        }
+        return saved;
+      },
+    );
     this.logger.debug(
       `用户 ${userId} 在文档 ${documentId} 创建评论 ${savedComment.id}`,
     );
@@ -157,9 +164,14 @@ export class DocumentCommentService {
   /**
    * 获取单个评论（带用户信息）
    */
-  async findOneWithUser(commentId: number) {
+  async findOneWithUser(commentId: number, documentId?: number) {
+    // 传入 documentId 时一并约束,防止跨文档读取他人文档的评论
     const comment = await this.commentRepository.findOne({
-      where: { id: commentId, deletedAt: IsNull() },
+      where: {
+        id: commentId,
+        deletedAt: IsNull(),
+        ...(documentId !== undefined ? { documentId } : {}),
+      },
       relations: ['user', 'resolver'],
     });
 
@@ -177,9 +189,11 @@ export class DocumentCommentService {
     commentId: number,
     userId: number,
     updateCommentDto: UpdateCommentDto,
+    documentId: number,
   ) {
+    // 约束 documentId,防止跨文档越权编辑(IDOR)
     const comment = await this.commentRepository.findOne({
-      where: { id: commentId, deletedAt: IsNull() },
+      where: { id: commentId, documentId, deletedAt: IsNull() },
     });
 
     if (!comment) {
@@ -201,9 +215,10 @@ export class DocumentCommentService {
   /**
    * 解决评论
    */
-  async resolve(commentId: number, userId: number) {
+  async resolve(commentId: number, userId: number, documentId: number) {
+    // 约束 documentId,防止跨文档越权操作他人文档的评论(IDOR)
     const comment = await this.commentRepository.findOne({
-      where: { id: commentId, deletedAt: IsNull() },
+      where: { id: commentId, documentId, deletedAt: IsNull() },
     });
 
     if (!comment) {
@@ -228,11 +243,10 @@ export class DocumentCommentService {
    * 重新打开评论
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async reopen(commentId: number, userId: number) {
-    // TODO: 可以添加权限检查，例如只允许评论作者或文档所有者重新打开
-    // 目前 userId 参数保留供将来使用
+  async reopen(commentId: number, userId: number, documentId: number) {
+    // 约束 documentId,防止跨文档越权(与 resolve 一致:读权限由控制器 assertCanRead 把关)
     const comment = await this.commentRepository.findOne({
-      where: { id: commentId, deletedAt: IsNull() },
+      where: { id: commentId, documentId, deletedAt: IsNull() },
     });
 
     if (!comment) {
@@ -256,9 +270,10 @@ export class DocumentCommentService {
   /**
    * 删除评论（软删除）
    */
-  async remove(commentId: number, userId: number) {
+  async remove(commentId: number, userId: number, documentId: number) {
+    // 约束 documentId,防止跨文档越权删除(IDOR)
     const comment = await this.commentRepository.findOne({
-      where: { id: commentId, deletedAt: IsNull() },
+      where: { id: commentId, documentId, deletedAt: IsNull() },
     });
 
     if (!comment) {
@@ -270,18 +285,19 @@ export class DocumentCommentService {
       throw new ForbiddenException('您无权删除此评论');
     }
 
-    // 软删除
-    comment.deletedAt = new Date();
-    await this.commentRepository.save(comment);
-
-    // 如果有父评论，更新父评论的回复计数
-    if (comment.parentId) {
-      await this.commentRepository.decrement(
-        { id: comment.parentId },
-        'replyCount',
-        1,
-      );
-    }
+    // 软删除 + 父评论回复计数递减,放入事务保证一致性(避免计数漂移)
+    await this.commentRepository.manager.transaction(async (em) => {
+      comment.deletedAt = new Date();
+      await em.save(comment);
+      if (comment.parentId) {
+        await em.decrement(
+          DocumentComment,
+          { id: comment.parentId },
+          'replyCount',
+          1,
+        );
+      }
+    });
 
     return { success: true, message: '评论已删除' };
   }

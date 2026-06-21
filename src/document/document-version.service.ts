@@ -65,29 +65,38 @@ export class DocumentVersionService {
     // 4. 压缩内容
     const compressedContent = await this.compressContent(dto.content);
 
-    // 5. 获取下一个版本号
-    const lastVersion = await this.versionRepository.findOne({
-      where: { documentId },
-      order: { versionNumber: 'DESC' },
+    // 5~6. 计算版本号并保存,放入事务并对「文档行」加悲观写锁,
+    // 序列化同一文档的并发版本创建,杜绝 read-max+1 竞态产生的重复版本号。
+    const contentSize = Buffer.byteLength(dto.content, 'utf-8');
+    return await this.versionRepository.manager.transaction(async (em) => {
+      // 锁住文档行(必然存在),使同文档的版本创建串行化
+      await em
+        .getRepository(FileSystemItemEntity)
+        .createQueryBuilder('d')
+        .setLock('pessimistic_write')
+        .where('d.id = :documentId', { documentId })
+        .getOne();
+
+      const lastVersion = await em.getRepository(DocumentVersionEntity).findOne({
+        where: { documentId },
+        order: { versionNumber: 'DESC' },
+      });
+      const nextVersionNumber = lastVersion ? lastVersion.versionNumber + 1 : 1;
+
+      const version = em.create(DocumentVersionEntity, {
+        documentId,
+        versionNumber: nextVersionNumber,
+        compressedContent,
+        contentSize,
+        contentHash,
+        authorId: userId,
+        changeDescription: dto.changeDescription,
+        isAutoSave: dto.isAutoSave ?? true,
+        isRestore: false,
+        isDelta: false,
+      });
+      return await em.save(version);
     });
-
-    const nextVersionNumber = lastVersion ? lastVersion.versionNumber + 1 : 1;
-
-    // 6. 创建新版本
-    const version = this.versionRepository.create({
-      documentId,
-      versionNumber: nextVersionNumber,
-      compressedContent,
-      contentSize: Buffer.byteLength(dto.content, 'utf-8'),
-      contentHash,
-      authorId: userId,
-      changeDescription: dto.changeDescription,
-      isAutoSave: dto.isAutoSave ?? true,
-      isRestore: false,
-      isDelta: false,
-    });
-
-    return await this.versionRepository.save(version);
   }
 
   /**
@@ -115,7 +124,8 @@ export class DocumentVersionService {
     });
 
     return {
-      versions,
+      // 列表无需返回 compressed_content(longblob),避免把每条版本的二进制内容塞进响应
+      versions: versions.map(({ compressedContent: _omit, ...v }) => v) as DocumentVersionEntity[],
       total,
       page,
       pageSize,
@@ -142,10 +152,12 @@ export class DocumentVersionService {
     // 解压内容
     const content = await this.decompressContent(version.compressedContent);
 
+    // 不把原始的 compressed_content(Buffer)塞进响应,只返回解压后的 content
+    const { compressedContent: _omit, ...rest } = version;
     return {
-      ...version,
+      ...rest,
       content,
-    };
+    } as DocumentVersionEntity & { content: string };
   }
 
   /**

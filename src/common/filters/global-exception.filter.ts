@@ -12,6 +12,36 @@ import { Request, Response } from 'express';
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
+  // 记录请求体前需脱敏的敏感字段(密码/验证码/令牌等),避免明文写入日志
+  private static readonly SENSITIVE_KEYS = new Set([
+    'password',
+    'newpassword',
+    'oldpassword',
+    'currentpassword',
+    'confirmpassword',
+    'token',
+    'refreshtoken',
+    'refresh_token',
+    'access_token',
+    'accesstoken',
+    'code',
+    'verificationcode',
+    'secret',
+  ]);
+
+  private redactBody(body: unknown): unknown {
+    if (!body || typeof body !== 'object') {
+      return body;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
+      out[key] = GlobalExceptionFilter.SENSITIVE_KEYS.has(key.toLowerCase())
+        ? '***'
+        : value;
+    }
+    return out;
+  }
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -33,7 +63,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     );
     this.logger.error(`Request URL: ${request.url}`);
     this.logger.error(`Request Method: ${request.method}`);
-    this.logger.error(`Request Body: ${JSON.stringify(request.body)}`);
+    this.logger.error(
+      `Request Body: ${JSON.stringify(this.redactBody(request.body))}`,
+    );
 
     if (exception instanceof Error) {
       this.logger.error(`Stack Trace: ${exception.stack}`);

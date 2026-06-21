@@ -16,6 +16,8 @@ import { UserEntity } from '../users/user.entity';
  * 用于存储文档的历史版本
  */
 @Entity('document_versions')
+// 注:并发版本号唯一性改由服务层「悲观行锁事务」保证(见 document-version.service),
+// 不在此处加唯一索引——该复合索引被外键约束占用,synchronize 改唯一会因无法 drop 而启动失败。
 @Index(['document', 'versionNumber'], { unique: false })
 @Index(['contentHash'])
 @Index(['createdAt'])

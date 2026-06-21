@@ -79,6 +79,27 @@ export class DocumentVersionController {
   }
 
   /**
+   * 对比两个版本
+   * 注意:必须声明在下面 :versionId 动态路由之前,否则 'compare' 会被 :versionId
+   * 捕获并被 ParseIntPipe 拒绝(400),导致该接口形同废弃。
+   * GET /api/documents/:documentId/versions/compare
+   */
+  @Get(':documentId/versions/compare')
+  async compareVersions(
+    @Param('documentId', ParseIntPipe) documentId: number,
+    @Query() dto: CompareVersionDto,
+    @Req() req: AuthRequest,
+  ) {
+    const userId = this.getUserId(req);
+    await this.accessService.assertCanRead(documentId, userId);
+    return await this.compareService.compareVersions(
+      documentId,
+      dto.sourceVersionId,
+      dto.targetVersionId,
+    );
+  }
+
+  /**
    * 获取版本详情
    * GET /api/documents/:documentId/versions/:versionId
    */
@@ -123,24 +144,6 @@ export class DocumentVersionController {
     return await this.versionService.cleanOldVersions(documentId, dto);
   }
 
-  /**
-   * 对比两个版本
-   * GET /api/documents/:documentId/versions/compare
-   */
-  @Get(':documentId/versions/compare')
-  async compareVersions(
-    @Param('documentId', ParseIntPipe) documentId: number,
-    @Query() dto: CompareVersionDto,
-    @Req() req: AuthRequest,
-  ) {
-    const userId = this.getUserId(req);
-    await this.accessService.assertCanRead(documentId, userId);
-    return await this.compareService.compareVersions(
-      documentId,
-      dto.sourceVersionId,
-      dto.targetVersionId,
-    );
-  }
   /**
    * 删除版本
    * DELETE /api/documents/:documentId/versions/:versionId

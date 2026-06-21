@@ -144,7 +144,10 @@ export class DocumentCommentController {
   ) {
     const userId = this.getUserId(req);
     await this.accessService.assertCanRead(documentId, userId);
-    const comment = await this.commentService.findOneWithUser(commentId);
+    const comment = await this.commentService.findOneWithUser(
+      commentId,
+      documentId,
+    );
 
     return {
       success: true,
@@ -172,6 +175,7 @@ export class DocumentCommentController {
       commentId,
       userId,
       updateCommentDto,
+      documentId,
     );
 
     return {
@@ -196,7 +200,11 @@ export class DocumentCommentController {
   ) {
     const userId = this.getUserId(req);
     await this.accessService.assertCanRead(documentId, userId);
-    const comment = await this.commentService.resolve(commentId, userId);
+    const comment = await this.commentService.resolve(
+      commentId,
+      userId,
+      documentId,
+    );
 
     return {
       success: true,
@@ -220,7 +228,11 @@ export class DocumentCommentController {
   ) {
     const userId = this.getUserId(req);
     await this.accessService.assertCanRead(documentId, userId);
-    const comment = await this.commentService.reopen(commentId, userId);
+    const comment = await this.commentService.reopen(
+      commentId,
+      userId,
+      documentId,
+    );
 
     return {
       success: true,
@@ -245,7 +257,11 @@ export class DocumentCommentController {
   ) {
     const userId = this.getUserId(req);
     await this.accessService.assertCanRead(documentId, userId);
-    const result = await this.commentService.remove(commentId, userId);
+    const result = await this.commentService.remove(
+      commentId,
+      userId,
+      documentId,
+    );
 
     return result;
   }

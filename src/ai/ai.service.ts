@@ -10,8 +10,16 @@ export class AiService {
   private readonly apiKey: string;
 
   constructor(private configService: ConfigService) {
+    // AI_USE_MOCK 解析与 env.ts 的 aiConfig 保持一致('true' 或 '1')。
+    // 未显式配置时:开发环境默认开启 Mock(便于演示),生产环境默认关闭——
+    // 避免生产忘配而静默返回假内容(改为调用真实接口,未实现则显式抛错)。
+    const rawMock = this.configService.get<string>('AI_USE_MOCK');
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
     this.useMock =
-      this.configService.get<string>('AI_USE_MOCK', 'true') === 'true';
+      rawMock !== undefined
+        ? rawMock === 'true' || rawMock === '1'
+        : !isProduction;
     this.apiKey = this.configService.get<string>('AI_API_KEY', '');
 
     this.logger.log(`AI Service initialized - Mock Mode: ${this.useMock}`);
