@@ -206,24 +206,6 @@ export class DocumentService {
       });
     }
 
-    // 为了调试，让我们也查询一下数据库中的原始数据
-    const allDocs = await this.documentRepository.find({
-      take: 5,
-      order: { created_time: 'DESC' },
-    });
-    this.logger.debug(
-      'Raw docs in DB (first 5):',
-      allDocs.map((doc) => ({
-        id: doc.id,
-        title: doc.name,
-        visibility: doc.visibility,
-        creatorId: doc.creatorId,
-        isDeleted: doc.isDeleted,
-      })),
-    );
-
-    this.logger.debug('=== End Debug Info ===');
-
     return { list: docs, count: count };
   }
 

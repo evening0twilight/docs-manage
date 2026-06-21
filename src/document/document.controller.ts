@@ -605,14 +605,6 @@ export class DocumentController {
     try {
       const currentUserId = req.user?.id || req.user?.sub;
 
-      // 调试日志
-      console.log('[DocumentController.findOne] 请求信息:', {
-        documentId: id,
-        reqUser: req.user,
-        extractedUserId: currentUserId,
-        userIdType: typeof currentUserId,
-      });
-
       if (!currentUserId) {
         return new ResponseDto(
           false,

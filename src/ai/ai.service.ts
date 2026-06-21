@@ -289,14 +289,16 @@ export class AiService {
   /**
    * 真实AI流式响应
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await, require-yield
   private async *callRealAIStream(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _dto: AIChatRequestDto,
   ): AsyncGenerator<string> {
-    // TODO: 实现真实的流式API调用
+    // TODO: 实现真实的流式API调用。
+    // 与 callRealAI/callRealAIQuickAction 一致:未配置时显式抛错,
+    // 而不是 yield 一段占位文本(否则前端会把假内容当作真实 AI 回复渲染)。
     this.logger.warn('Real AI Stream API not implemented yet');
-    yield '真实AI流式服务尚未配置';
+    throw new Error('真实AI流式服务尚未配置，请设置 AI_USE_MOCK=true 使用Mock模式');
   }
 
   /**
