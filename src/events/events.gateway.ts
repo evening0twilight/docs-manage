@@ -8,7 +8,7 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Server, Socket, Namespace } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { corsOrigin } from '../common/cors.util';
@@ -46,8 +46,9 @@ interface DocumentEdit {
 export class EventsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
+  // 命名空间网关:注入的是 /ws Namespace(其 .sockets 是 socket Map)
   @WebSocketServer()
-  server: Server;
+  server: Namespace;
 
   private logger: Logger = new Logger('EventsGateway');
   private connectedUsers: Map<string, UserInfo> = new Map(); // socketId -> UserInfo
@@ -208,8 +209,8 @@ export class EventsGateway
     // 检查该用户是否已在其他地方登录
     const existingSocketId = this.userSessions.get(userId);
     if (existingSocketId && existingSocketId !== client.id) {
-      // 找到旧的socket连接
-      const oldSocket = this.server.sockets.sockets.get(existingSocketId);
+      // 找到旧的socket连接(Namespace.sockets 即 socketId -> Socket 的 Map)
+      const oldSocket = this.server.sockets.get(existingSocketId);
       if (oldSocket) {
         this.logger.log(
           `用户 ${username} (${userId}) 在其他地方登录，踢出旧连接 ${existingSocketId}`,
