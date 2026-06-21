@@ -38,10 +38,14 @@ export class UsersService implements OnModuleDestroy {
   async login(dto: LoginDto): Promise<AuthResponse> {
     const { username, password } = dto;
 
-    // 查找用户
-    const user = await this.userRepository.findOne({
-      where: [{ username }, { email: username }], // 允许用户名或邮箱登录
-    });
+    // 查找用户(password 为 select:false,登录校验需用 addSelect 显式取出)
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.username = :login OR user.email = :login', {
+        login: username,
+      })
+      .getOne();
 
     if (!user) {
       throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
@@ -83,10 +87,12 @@ export class UsersService implements OnModuleDestroy {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
 
-      // 查找用户
-      const user = await this.userRepository.findOne({
-        where: { id: payload.sub },
-      });
+      // 查找用户(refreshToken 为 select:false,需 addSelect 取出做比对)
+      const user = await this.userRepository
+        .createQueryBuilder('user')
+        .addSelect('user.refreshToken')
+        .where('user.id = :id', { id: payload.sub })
+        .getOne();
 
       if (!user || user.refreshToken !== refreshToken) {
         throw new HttpException(
@@ -210,8 +216,15 @@ export class UsersService implements OnModuleDestroy {
       );
     }
 
-    // 查找用户
-    const user = await this.findById(userId);
+    // 查找用户(password 为 select:false,改密校验需 addSelect 取出)
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+    if (!user) {
+      throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+    }
 
     // 验证当前密码
     const isPasswordValid = await bcrypt.compare(

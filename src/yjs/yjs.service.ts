@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Server } from '@hocuspocus/server';
 import * as Y from 'yjs';
 import { YjsDocumentEntity } from './yjs-document.entity';
+import { DocumentAccessService } from '../document/document-access.service';
 
 /**
  * 基于 Hocuspocus 的 Yjs/CRDT 协同后端
@@ -30,6 +31,7 @@ export class YjsService implements OnModuleInit, OnModuleDestroy {
     private readonly yjsRepo: Repository<YjsDocumentEntity>,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly documentAccess: DocumentAccessService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -39,17 +41,53 @@ export class YjsService implements OnModuleInit, OnModuleDestroy {
       port,
       quiet: true,
 
-      // 鉴权:HocuspocusProvider 通过 token 选项发送 JWT(定义了此钩子即强制鉴权)
-      onAuthenticate: async ({ token }: { token: string }) => {
+      // 鉴权 + 文档级授权:不仅校验 JWT,还要校验该用户对该文档的读/写权限,
+      // 否则任何登录用户都能通过 ws 直接读写任意私有/未开启协同的文档(IDOR,绕过 HTTP 层)。
+      onAuthenticate: async ({
+        token,
+        documentName,
+        connectionConfig,
+      }: {
+        token: string;
+        documentName: string;
+        connectionConfig: { readOnly: boolean };
+      }) => {
         const raw = token?.startsWith('Bearer ') ? token.slice(7) : token;
         if (!raw) {
           throw new Error('未提供认证令牌');
         }
+
+        let payload: { sub?: number | string };
         try {
-          await this.jwtService.verifyAsync(raw);
+          payload = await this.jwtService.verifyAsync(raw);
         } catch {
           throw new Error('认证令牌无效或已过期');
         }
+        const userId = Number(payload?.sub);
+        if (!userId) {
+          throw new Error('认证令牌缺少用户信息');
+        }
+
+        // 房间名形如 'document-<id>',解析出文档 id 做权限校验
+        const match = /^document-(\d+)$/.exec(documentName);
+        if (!match) {
+          throw new Error('非法的协同房间名');
+        }
+        const documentId = Number(match[1]);
+
+        // 先尝试写权限;无写权限则降级为只读连接;读权限也没有则拒绝接入
+        try {
+          await this.documentAccess.assertCanWrite(documentId, userId);
+        } catch {
+          try {
+            await this.documentAccess.assertCanRead(documentId, userId);
+            connectionConfig.readOnly = true;
+          } catch {
+            throw new Error('无权访问此文档');
+          }
+        }
+
+        return { userId, documentId };
       },
 
       // 首次加载房间:从库中恢复已持久化的 Yjs 状态

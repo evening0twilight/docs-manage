@@ -184,9 +184,6 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
   logger.log(`应用已启动在端口 ${process.env.PORT ?? 3000}`);
-  logger.log(
-    `日志查看器: http://localhost:${process.env.PORT ?? 3000}/logs.html`,
-  );
   logger.log(`API 文档: http://localhost:${process.env.PORT ?? 3000}/api-docs`);
 }
 

@@ -13,6 +13,7 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { corsOrigin } from '../common/cors.util';
 import { JwtPayload } from '../users/strategies/jwt.strategy';
+import { DocumentAccessService } from '../document/document-access.service';
 
 interface UserInfo {
   userId: string;
@@ -68,8 +69,15 @@ export class EventsGateway
     '#52B788',
   ];
   private usedColors: Set<string> = new Set(); // 跟踪已使用的颜色
+  // 每个 socket 已授权可读/可写的文档集合(加入房间时按文档级权限填充),
+  // 用于杜绝越权:未授权用户既无法加入房间窃听,也无法伪造编辑/光标/聊天广播。
+  private socketReadable: Map<string, Set<string>> = new Map(); // socketId -> 可读 documentId 集
+  private socketWritable: Map<string, Set<string>> = new Map(); // socketId -> 可写 documentId 集
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly documentAccess: DocumentAccessService,
+  ) {}
 
   /**
    * 从握手信息中提取 JWT
@@ -183,6 +191,8 @@ export class EventsGateway
 
     // 无论是否认证成功,都清理连接级状态,避免残留僵尸连接
     this.connectedUsers.delete(client.id);
+    this.socketReadable.delete(client.id);
+    this.socketWritable.delete(client.id);
   }
 
   /**
@@ -255,7 +265,7 @@ export class EventsGateway
    * 加入文档房间
    */
   @SubscribeMessage('join-document')
-  handleJoinDocument(
+  async handleJoinDocument(
     @MessageBody() data: { documentId: string },
     @ConnectedSocket() client: Socket,
   ) {
@@ -265,6 +275,36 @@ export class EventsGateway
     if (!userInfo) {
       client.emit('error', { message: '请先进行身份认证' });
       return;
+    }
+
+    // 文档级授权:校验该用户对该文档是否有读权限,否则拒绝加入(防止越权窃听/伪造)。
+    const docIdNum = Number(documentId);
+    if (!Number.isFinite(docIdNum)) {
+      client.emit('error', { message: '非法的文档ID' });
+      return;
+    }
+    let canWrite = false;
+    try {
+      await this.documentAccess.assertCanWrite(docIdNum, Number(userInfo.userId));
+      canWrite = true;
+    } catch {
+      try {
+        await this.documentAccess.assertCanRead(docIdNum, Number(userInfo.userId));
+      } catch {
+        client.emit('error', { message: '无权访问此文档' });
+        return;
+      }
+    }
+    // 记录该 socket 对此文档的读/写授权
+    if (!this.socketReadable.has(client.id)) {
+      this.socketReadable.set(client.id, new Set());
+    }
+    this.socketReadable.get(client.id)!.add(documentId);
+    if (canWrite) {
+      if (!this.socketWritable.has(client.id)) {
+        this.socketWritable.set(client.id, new Set());
+      }
+      this.socketWritable.get(client.id)!.add(documentId);
     }
 
     // 加入 Socket.IO 房间
@@ -338,6 +378,10 @@ export class EventsGateway
     // 离开 Socket.IO 房间
     void client.leave(documentId); // 使用 void 标记表示有意忽略 Promise
 
+    // 撤销该 socket 对此文档的读/写授权
+    this.socketReadable.get(client.id)?.delete(documentId);
+    this.socketWritable.get(client.id)?.delete(documentId);
+
     // 从文档房间中移除
     const room = this.documentRooms.get(documentId);
     if (room) {
@@ -399,6 +443,12 @@ export class EventsGateway
       openEnd,
     } = data;
 
+    // 授权校验:仅当该 socket 对此文档有写权限时才允许广播编辑(防止伪造编辑)
+    if (!this.socketWritable.get(client.id)?.has(documentId)) {
+      client.emit('error', { message: '无权编辑此文档' });
+      return;
+    }
+
     // 广播给房间内其他用户（不包括发送者）
     client.to(documentId).emit('document-edit', {
       userId: userInfo.userId,
@@ -438,6 +488,11 @@ export class EventsGateway
     }
 
     const { documentId, position } = data;
+
+    // 仅允许向已授权可读的文档广播光标
+    if (!this.socketReadable.get(client.id)?.has(documentId)) {
+      return;
+    }
 
     this.logger.debug(
       `收到光标位置: ${userInfo.username} (${userInfo.userId}) - line: ${position.line}, col: ${position.column}`,
@@ -482,6 +537,11 @@ export class EventsGateway
 
     const { documentId, selection } = data;
 
+    // 仅允许向已授权可读的文档广播选区
+    if (!this.socketReadable.get(client.id)?.has(documentId)) {
+      return;
+    }
+
     // 广播给房间内其他用户
     client.to(documentId).emit('selection-change', {
       userId: userInfo.userId,
@@ -508,6 +568,11 @@ export class EventsGateway
 
     const { documentId, isTyping } = data;
 
+    // 仅允许向已授权可读的文档广播输入状态
+    if (!this.socketReadable.get(client.id)?.has(documentId)) {
+      return;
+    }
+
     // 广播给房间内其他用户
     client.to(documentId).emit('user-typing', {
       userId: userInfo.userId,
@@ -533,6 +598,12 @@ export class EventsGateway
     }
 
     const { documentId, message } = data;
+
+    // 仅允许向已授权可读的文档房间发送聊天
+    if (!this.socketReadable.get(client.id)?.has(documentId)) {
+      client.emit('error', { message: '无权在此文档发送消息' });
+      return;
+    }
 
     // 广播给房间内所有用户（包括发送者）
     this.server.to(documentId).emit('chat-message', {

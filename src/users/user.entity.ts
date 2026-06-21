@@ -20,7 +20,9 @@ export class UserEntity {
   @Column({ unique: true, length: 100 })
   email: string;
 
-  @Column({ length: 255 })
+  // select:false —— 密码哈希默认绝不随查询返回(防止经 user 关联 join 泄漏);
+  // 登录/改密等需要时用 .addSelect('user.password') 显式取出。
+  @Column({ length: 255, select: false })
   password: string;
 
   // ========== 个人资料 ==========
@@ -70,7 +72,8 @@ export class UserEntity {
   showOnlineStatus: boolean;
 
   // ========== 系统字段 ==========
-  @Column({ nullable: true, length: 500 })
+  // select:false —— refreshToken 同样默认不返回,刷新令牌时用 .addSelect 取出
+  @Column({ nullable: true, length: 500, select: false })
   refreshToken?: string;
 
   @Column({ default: 0, comment: 'Token版本号,用于单点登录强制失效旧token' })

@@ -6,7 +6,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DocumentModule } from './document/document.module';
-import { LogsModule } from './logs/logs.module';
 import { MailModule } from './common/mail/mail.module';
 import { UploadModule } from './common/upload/upload.module';
 import { EventsModule } from './events/events.module';
@@ -63,7 +62,6 @@ import { HttpThrottlerGuard } from './common/guards/http-throttler.guard';
     AiModule,
     UsersModule,
     DocumentModule,
-    LogsModule,
     YjsModule,
   ],
   controllers: [AppController],
