@@ -51,5 +51,7 @@ export function corsOrigin(
     callback(null, true);
     return;
   }
-  callback(new Error(`CORS 不允许的来源: ${requestOrigin}`), false);
+  // 不在白名单:干净地拒绝(不返回 Access-Control-Allow-Origin,由浏览器拦截),
+  // 而不是抛 Error——抛错会经全局异常过滤器变成 500 并污染错误日志。
+  callback(null, false);
 }
