@@ -124,6 +124,7 @@ export class DocumentPermissionController {
       permissionId,
       updateDto,
       Number(req.user.sub),
+      Number(documentId),
     );
 
     // 通过WebSocket通知权限变更
@@ -155,12 +156,14 @@ export class DocumentPermissionController {
     description: '删除成功',
   })
   async removePermission(
+    @Param('documentId') documentId: string,
     @Param('permissionId') permissionId: string,
     @Request() req,
   ) {
     await this.permissionService.removePermission(
       permissionId,
       Number(req.user.sub),
+      Number(documentId),
     );
 
     return {

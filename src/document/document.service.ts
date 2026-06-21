@@ -18,6 +18,7 @@ import {
 import { QueryDocumentDto } from './dto/query-document.dto';
 import { DocumentPermission } from './document-permission.entity';
 import { EventsGateway } from '../events/events.gateway';
+import { YjsDocumentEntity } from '../yjs/yjs-document.entity';
 
 @Injectable()
 export class DocumentService {
@@ -26,6 +27,8 @@ export class DocumentService {
     private readonly documentRepository: Repository<FileSystemItemEntity>,
     @InjectRepository(DocumentPermission)
     private readonly permissionRepository: Repository<DocumentPermission>,
+    @InjectRepository(YjsDocumentEntity)
+    private readonly yjsRepository: Repository<YjsDocumentEntity>,
     private readonly eventsGateway: EventsGateway,
   ) {}
 
@@ -739,6 +742,16 @@ export class DocumentService {
     // 软删除
     existDoc.isDeleted = true;
     await this.documentRepository.save(existDoc);
+
+    // 清理该文档的协同(Yjs)持久化状态,避免软删除后遗留孤儿行造成存储泄漏。
+    // 房间名约定为 'document-<id>'(与前端 useYjsCollaboration 一致)。
+    if (existDoc.itemType === ItemType.DOCUMENT) {
+      await this.yjsRepository
+        .delete({ name: `document-${id}` })
+        .catch((err) =>
+          this.logger.warn(`清理 Yjs 状态失败(document-${id}): ${err}`),
+        );
+    }
   }
 
   // 切换协同编辑开关

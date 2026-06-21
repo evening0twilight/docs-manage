@@ -253,9 +253,11 @@ export class DocumentPermissionService {
     permissionId: string,
     updateDto: UpdatePermissionDto,
     currentUserId: number,
+    documentId: number,
   ): Promise<DocumentPermission> {
+    // 约束 permissionId 必须属于路径上的 documentId,避免跨文档操作他文档的权限记录
     const permission = await this.permissionRepository.findOne({
-      where: { id: permissionId },
+      where: { id: permissionId, documentId },
     });
 
     if (!permission) {
@@ -297,9 +299,11 @@ export class DocumentPermissionService {
   async removePermission(
     permissionId: string,
     currentUserId: number,
+    documentId: number,
   ): Promise<void> {
+    // 约束 permissionId 必须属于路径上的 documentId
     const permission = await this.permissionRepository.findOne({
-      where: { id: permissionId },
+      where: { id: permissionId, documentId },
     });
 
     if (!permission) {
@@ -361,25 +365,8 @@ export class DocumentPermissionService {
     }
   }
 
-  /**
-   * 创建所有者权限(在创建文档时自动调用)
-   */
-  async createOwnerPermission(
-    documentId: number,
-    userId: number,
-  ): Promise<DocumentPermission> {
-    const permission = this.permissionRepository.create({
-      documentId: documentId,
-      userId: userId,
-      role: PermissionRole.OWNER,
-      canRead: true,
-      canWrite: true,
-      canDelete: true,
-      canShare: true,
-    });
-
-    return await this.permissionRepository.save(permission);
-  }
+  // 注:文档所有权统一以 file_system_items.creatorId 为准(checkPermission 对创建者直接放行),
+  // 不再单独写 OWNER 权限行;原 createOwnerPermission 为无调用者的死代码,已移除。
 
   /**
    * 获取用户有权限的所有文档

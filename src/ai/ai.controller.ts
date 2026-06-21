@@ -79,17 +79,4 @@ export class AiController {
     this.logger.log(`Quick action request: ${dto.action}`);
     return await this.aiService.quickAction(dto);
   }
-
-  /**
-   * GET /api/ai/health
-   * 健康检查接口
-   */
-  @Post('health')
-  health() {
-    return {
-      status: 'ok',
-      service: 'AI Assistant',
-      timestamp: new Date().toISOString(),
-    };
-  }
 }

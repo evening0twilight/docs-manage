@@ -20,6 +20,7 @@ import { DocumentPermission } from './document-permission.entity';
 import { DocumentComment } from './document-comment.entity';
 import { DocumentVersionEntity } from './document-version.entity';
 import { UserEntity } from '../users/user.entity';
+import { YjsDocumentEntity } from '../yjs/yjs-document.entity';
 // 文件上传模块
 import { MulterModule } from '@nestjs/platform-express';
 // 导入 PassportModule 和 JwtModule 以支持 JWT 认证
@@ -35,6 +36,7 @@ import { EventsModule } from '../events/events.module';
       DocumentComment,
       DocumentVersionEntity,
       UserEntity,
+      YjsDocumentEntity,
     ]),
     MulterModule.register({
       dest: './uploads', // 文件上传目录

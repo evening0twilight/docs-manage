@@ -168,7 +168,7 @@ export class DocumentVersionService {
     documentId: number,
     userId: number,
     dto: RestoreVersionDto,
-  ): Promise<{ message: string; versionNumber: number }> {
+  ): Promise<{ message: string; versionNumber: number; content: string }> {
     // 1. 获取目标版本
     const targetVersion = await this.versionRepository.findOne({
       where: { id: dto.versionId, documentId },
@@ -188,10 +188,11 @@ export class DocumentVersionService {
       content,
     });
 
-    // 返回恢复信息(不创建新版本,避免内容重复)
+    // 一并返回恢复后的内容,前端无需再发一次 getVersionDetail(省一次往返)
     return {
       message: `已恢复到版本 ${targetVersion.versionNumber}`,
       versionNumber: targetVersion.versionNumber,
+      content,
     };
   }
 
