@@ -54,6 +54,9 @@ export class DocumentVersionCleanupService {
     // 1. 清理30-90天的自动保存版本(保留每天第一个)
     const mediumOldVersions = await this.versionRepository
       .createQueryBuilder('v')
+      // 只取筛选/删除/统计所需的列,不把 compressed_content(longblob)整列读进内存,
+      // 避免历史版本多/大时一次性加载海量二进制导致 OOM/GC 抖动。
+      .select(['v.id', 'v.documentId', 'v.createdAt', 'v.contentSize'])
       .where('v.createdAt BETWEEN :ninety AND :thirty', {
         ninety: ninetyDaysAgo,
         thirty: thirtyDaysAgo,
@@ -65,10 +68,8 @@ export class DocumentVersionCleanupService {
 
     const toDeleteMedium = this.filterKeepOnePerDay(mediumOldVersions);
     totalDeleted += toDeleteMedium.length;
-    totalFreed += toDeleteMedium.reduce(
-      (sum, v) => sum + v.compressedContent.length,
-      0,
-    );
+    // freedSpace 改以未压缩字节(contentSize)统计——仅用于日志展示,非业务逻辑
+    totalFreed += toDeleteMedium.reduce((sum, v) => sum + (v.contentSize || 0), 0);
 
     // 2. 清理90天以上的自动保存版本(保留每周第一个)
     const veryOldVersions = await this.versionRepository.find({
@@ -76,20 +77,24 @@ export class DocumentVersionCleanupService {
         createdAt: LessThan(ninetyDaysAgo),
         isAutoSave: true,
       },
+      // 同上,只取元信息列,不加载 longblob
+      select: {
+        id: true,
+        documentId: true,
+        createdAt: true,
+        contentSize: true,
+      },
       order: { documentId: 'ASC', createdAt: 'DESC' },
     });
 
     const toDeleteOld = this.filterKeepOnePerWeek(veryOldVersions);
     totalDeleted += toDeleteOld.length;
-    totalFreed += toDeleteOld.reduce(
-      (sum, v) => sum + v.compressedContent.length,
-      0,
-    );
+    totalFreed += toDeleteOld.reduce((sum, v) => sum + (v.contentSize || 0), 0);
 
-    // 3. 执行删除
-    const allToDelete = [...toDeleteMedium, ...toDeleteOld];
-    if (allToDelete.length > 0) {
-      await this.versionRepository.remove(allToDelete);
+    // 3. 执行删除(按 id 批量删,不依赖完整实体——上面查询已不含 compressedContent)
+    const idsToDelete = [...toDeleteMedium, ...toDeleteOld].map((v) => v.id);
+    if (idsToDelete.length > 0) {
+      await this.versionRepository.delete(idsToDelete);
     }
 
     return {
