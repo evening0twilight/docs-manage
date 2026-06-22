@@ -1,8 +1,28 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, FindOptionsSelect } from 'typeorm';
 import { FileSystemItemEntity, ItemType } from './document.entity';
 import { QueryDocumentDto } from './dto/query-document.dto';
+
+/**
+ * 树/目录列表渲染所需的元信息列白名单。
+ * 刻意排除 content(文档全文 TEXT)、description、author、thumb_url 等大/无关字段——
+ * 树接口会一次性返回用户所有项目,带上 content 会让响应体随文档数线性膨胀。
+ */
+const TREE_META_SELECT: FindOptionsSelect<FileSystemItemEntity> = {
+  id: true,
+  name: true,
+  itemType: true,
+  documentType: true,
+  parentId: true,
+  sortOrder: true,
+  creatorId: true,
+  visibility: true,
+  isDeleted: true,
+  isCollaborationEnabled: true,
+  created_time: true,
+  updated_time: true,
+};
 
 /**
  * 文件系统层级服务
@@ -70,6 +90,7 @@ export class DocumentHierarchyService {
         creatorId,
         isDeleted: false,
       },
+      select: TREE_META_SELECT, // 只取元信息列,不返回 content 等大字段
       order: {
         itemType: 'ASC', // 文件夹排在前面
         sortOrder: 'ASC',
@@ -135,6 +156,7 @@ export class DocumentHierarchyService {
         creatorId,
         isDeleted: false,
       },
+      select: TREE_META_SELECT, // 只取元信息列,树接口不返回各文档的 content 全文
       order: {
         itemType: 'ASC',
         sortOrder: 'ASC',
@@ -153,6 +175,9 @@ export class DocumentHierarchyService {
   ): Promise<FileSystemItemEntity[]> {
     // 构建查询条件
     const qb = this.documentRepository.createQueryBuilder('item');
+
+    // 只取树渲染所需的元信息列,不返回各文档的 content 全文(树会返回用户全部项目)
+    qb.select(Object.keys(TREE_META_SELECT).map((k) => `item.${k}`));
 
     qb.where('item.creatorId = :creatorId', { creatorId }).andWhere(
       'item.isDeleted = :isDeleted',
@@ -192,9 +217,10 @@ export class DocumentHierarchyService {
         let currentParentId: number | null = item.parentId;
         while (currentParentId) {
           parentIds.add(currentParentId);
-          // 查找父文件夹的父文件夹
+          // 查找父文件夹的父文件夹(仅需 parentId 做向上回溯)
           const parent = await this.documentRepository.findOne({
             where: { id: currentParentId, creatorId, isDeleted: false },
+            select: { id: true, parentId: true },
           });
           currentParentId = parent?.parentId || null;
         }
@@ -209,6 +235,7 @@ export class DocumentHierarchyService {
             isDeleted: false,
             itemType: ItemType.FOLDER,
           },
+          select: TREE_META_SELECT, // 与 qb 一致,不取 content 等大字段
         });
 
         // 合并结果，去重

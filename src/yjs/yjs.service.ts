@@ -116,7 +116,9 @@ export class YjsService implements OnModuleInit, OnModuleDestroy {
         document: Y.Doc;
       }) => {
         const state = Buffer.from(Y.encodeStateAsUpdate(document));
-        await this.yjsRepo.save({ name: documentName, state });
+        // 用 upsert 而非 save:save 会先按主键 SELECT 把已有 longblob 整列回读做 diff,
+        // 每次防抖落盘都多一轮往返 + 大字段读带宽。upsert 直接 INSERT ... ON DUPLICATE KEY UPDATE。
+        await this.yjsRepo.upsert({ name: documentName, state }, ['name']);
       },
     });
 
