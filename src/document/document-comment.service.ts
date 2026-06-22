@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, In } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { DocumentComment } from './document-comment.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
@@ -98,10 +98,14 @@ export class DocumentCommentService {
       includeReplies?: boolean;
     },
   ) {
+    // 关联 user/resolver 只取展示所需列(id/username/avatar),不返回整张 UserEntity
+    // (含 email/phone/bio 等 PII),既减小响应体也收敛信息暴露面。
     const queryBuilder = this.commentRepository
       .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.user', 'user')
-      .leftJoinAndSelect('comment.resolver', 'resolver')
+      .leftJoin('comment.user', 'user')
+      .addSelect(['user.id', 'user.username', 'user.avatar'])
+      .leftJoin('comment.resolver', 'resolver')
+      .addSelect(['resolver.id', 'resolver.username'])
       .where('comment.documentId = :documentId', { documentId })
       .andWhere('comment.deletedAt IS NULL')
       .andWhere('comment.parentId IS NULL'); // 只查询顶级评论
@@ -120,11 +124,16 @@ export class DocumentCommentService {
     // 如果需要包含回复:一次性批量查询所有回复,避免 N+1
     if (options?.includeReplies && comments.length > 0) {
       const commentIds = comments.map((c) => c.id);
-      const allReplies = await this.commentRepository.find({
-        where: { parentId: In(commentIds), deletedAt: IsNull() },
-        relations: ['user', 'resolver'],
-        order: { createdAt: 'ASC' },
-      });
+      const allReplies = await this.commentRepository
+        .createQueryBuilder('comment')
+        .leftJoin('comment.user', 'user')
+        .addSelect(['user.id', 'user.username', 'user.avatar'])
+        .leftJoin('comment.resolver', 'resolver')
+        .addSelect(['resolver.id', 'resolver.username'])
+        .where('comment.parentId IN (:...commentIds)', { commentIds })
+        .andWhere('comment.deletedAt IS NULL')
+        .orderBy('comment.createdAt', 'ASC')
+        .getMany();
 
       const repliesMap = new Map<number, DocumentComment[]>();
       for (const reply of allReplies) {
@@ -149,16 +158,16 @@ export class DocumentCommentService {
    * 获取评论的回复列表
    */
   async findReplies(commentId: number) {
-    return this.commentRepository.find({
-      where: {
-        parentId: commentId,
-        deletedAt: IsNull(),
-      },
-      relations: ['user', 'resolver'],
-      order: {
-        createdAt: 'ASC',
-      },
-    });
+    return this.commentRepository
+      .createQueryBuilder('comment')
+      .leftJoin('comment.user', 'user')
+      .addSelect(['user.id', 'user.username', 'user.avatar'])
+      .leftJoin('comment.resolver', 'resolver')
+      .addSelect(['resolver.id', 'resolver.username'])
+      .where('comment.parentId = :commentId', { commentId })
+      .andWhere('comment.deletedAt IS NULL')
+      .orderBy('comment.createdAt', 'ASC')
+      .getMany();
   }
 
   /**
@@ -166,14 +175,18 @@ export class DocumentCommentService {
    */
   async findOneWithUser(commentId: number, documentId?: number) {
     // 传入 documentId 时一并约束,防止跨文档读取他人文档的评论
-    const comment = await this.commentRepository.findOne({
-      where: {
-        id: commentId,
-        deletedAt: IsNull(),
-        ...(documentId !== undefined ? { documentId } : {}),
-      },
-      relations: ['user', 'resolver'],
-    });
+    const qb = this.commentRepository
+      .createQueryBuilder('comment')
+      .leftJoin('comment.user', 'user')
+      .addSelect(['user.id', 'user.username', 'user.avatar'])
+      .leftJoin('comment.resolver', 'resolver')
+      .addSelect(['resolver.id', 'resolver.username'])
+      .where('comment.id = :commentId', { commentId })
+      .andWhere('comment.deletedAt IS NULL');
+    if (documentId !== undefined) {
+      qb.andWhere('comment.documentId = :documentId', { documentId });
+    }
+    const comment = await qb.getOne();
 
     if (!comment) {
       throw new NotFoundException('评论不存在');
